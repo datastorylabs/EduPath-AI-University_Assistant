@@ -22,7 +22,7 @@
 
 - Added `/auth/csrf`, `/auth/register`, `/auth/login`, `/auth/me`, `/auth/logout`, and `/auth/logout-all`.
 - Added Argon2id password hashing, normalized email inputs, generic login failures, opaque HttpOnly session cookies, server-side session/CSRF token digests, expiry/revocation checks, inactive-account rejection, and logout-all.
-- Added CSRF double-submit checks for state-changing auth endpoints, an ownership helper that returns 404 for cross-user resources, input validation error sanitization, security headers, no-store auth responses, minimal audit events, and authentication rate limiting.
+- Added CSRF double-submit checks for state-changing auth endpoints; the CSRF bootstrap preserves a matching token for an active session. Added an ownership helper that returns 404 for cross-user resources, input validation error sanitization, security headers, no-store auth responses, minimal audit events, and authentication rate limiting.
 - Development/test uses a bounded in-process fixed-window limiter. Production requires `rediss://` for shared rate limits and fails closed when Redis is unavailable; PostgreSQL, a strong secret, and HTTPS CORS allowlist are also required.
 - Added Alembic migration `0002_auth_sessions_and_audit` for sessions and security audit events.
 - Verification: `python -m pytest tests/api -q` — 24 passed. Temporary SQLite migration reached `0002_auth_sessions_and_audit (head)`; `alembic check` reported no new upgrade operations. Schema tables verified: `users`, `auth_sessions`, `security_audit_events`, and `alembic_version`.
