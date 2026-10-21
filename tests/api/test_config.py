@@ -7,56 +7,45 @@ from backend.app.config import Settings
 
 
 def test_development_supports_sqlite_without_production_secrets():
-    settings = Settings(
-        app_env="development",
-        database_url="sqlite+pysqlite:///./test.db",
-        secret_key="",
-    )
+    settings = Settings(app_env="development", database_url="sqlite+pysqlite:///./test.db", secret_key="")
     assert settings.database_url.startswith("sqlite")
 
 
 def test_production_rejects_placeholder_secret():
-    with pytest.raises(ValidationError, match="Production requires SECRET_KEY"):
-        Settings(
-            app_env="production",
-            database_url="postgresql+psycopg://user:password@localhost/edupath",
-            secret_key="replace-this-with-a-unique-random-value-of-at-least-32-bytes",
-            cors_origins_raw="https://app.example.com",
-        )
+    with pytest.raises(ValidationError, match="Production requires"):
+        Settings(app_env="production", database_url="postgresql+psycopg://user:password@localhost/edupath",
+                 secret_key="replace-this-with-a-unique-random-value-of-at-least-32-bytes",
+                 cors_origins_raw="https://app.example.com", redis_url="rediss://redis.example.com:6380/0")
 
 
 def test_production_rejects_sqlite():
     with pytest.raises(ValidationError, match="Production must use a configured PostgreSQL"):
-        Settings(
-            app_env="production",
-            database_url="sqlite+pysqlite:///./edupath.db",
-            secret_key="s" * 64,
-            cors_origins_raw="https://app.example.com",
-        )
+        Settings(app_env="production", database_url="sqlite+pysqlite:///./edupath.db",
+                 secret_key="s" * 64, cors_origins_raw="https://app.example.com",
+                 redis_url="rediss://redis.example.com:6380/0")
+
+
+def test_production_rejects_missing_or_non_tls_redis():
+    for redis_url in (None, "redis://redis.example.com:6379/0"):
+        with pytest.raises(ValidationError, match="TLS-protected REDIS_URL"):
+            Settings(app_env="production", database_url="postgresql+psycopg://user:password@localhost/edupath",
+                     secret_key="s" * 64, cors_origins_raw="https://app.example.com", redis_url=redis_url)
 
 
 def test_production_rejects_wildcard_or_non_https_cors_origin():
     for origins in ("*", "http://app.example.com", "https://app.example.com/path"):
         with pytest.raises(ValidationError):
-            Settings(
-                app_env="production",
-                database_url="postgresql+psycopg://user:password@localhost/edupath",
-                secret_key="s" * 64,
-                cors_origins_raw=origins,
-            )
+            Settings(app_env="production", database_url="postgresql+psycopg://user:password@localhost/edupath",
+                     secret_key="s" * 64, cors_origins_raw=origins,
+                     redis_url="rediss://redis.example.com:6380/0")
 
 
 def test_production_accepts_explicit_safe_configuration():
-    settings = Settings(
-        app_env="production",
-        database_url="postgresql+psycopg://user:password@localhost/edupath",
-        secret_key="a" * 64,
-        cors_origins_raw="https://app.example.com, https://admin.example.com/",
-    )
-    assert settings.cors_origins == [
-        "https://app.example.com",
-        "https://admin.example.com",
-    ]
+    settings = Settings(app_env="production", database_url="postgresql+psycopg://user:password@localhost/edupath",
+                        secret_key="a" * 64,
+                        cors_origins_raw="https://app.example.com, https://admin.example.com/",
+                        redis_url="rediss://redis.example.com:6380/0")
+    assert settings.cors_origins == ["https://app.example.com", "https://admin.example.com"]
 
 
 def test_cors_origins_environment_alias(monkeypatch):
