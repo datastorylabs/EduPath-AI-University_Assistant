@@ -95,6 +95,17 @@ def test_current_user_and_logout_revoke_the_session(client):
         assert session.revoked_at is not None
 
 
+def test_csrf_bootstrap_does_not_invalidate_existing_session_token(client):
+    response = register(client)
+    assert response.status_code == 201
+    existing_token = response.json()["csrf_token"]
+    bootstrap = client.get("/auth/csrf")
+    assert bootstrap.status_code == 200
+    assert bootstrap.json()["csrf_token"] == existing_token
+    logout = client.post("/auth/logout", headers={"X-CSRF-Token": bootstrap.json()["csrf_token"]})
+    assert logout.status_code == 204
+
+
 def test_logout_requires_valid_csrf_token(client):
     assert register(client).status_code == 201
     assert client.post("/auth/logout", headers={"X-CSRF-Token": "invalid-token"}).status_code == 403
