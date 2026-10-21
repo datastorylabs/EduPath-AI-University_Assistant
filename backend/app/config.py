@@ -1,4 +1,4 @@
-"""Environment-driven configuration with stricter production validation."""
+"""Environment-driven configuration with strict production safeguards."""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -25,15 +25,15 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+pysqlite:///./edupath.db"
     secret_key: SecretStr = SecretStr("")
     cors_origins_raw: str = Field(default="", validation_alias="CORS_ORIGINS")
+    redis_url: str | None = None
+    session_ttl_hours: int = Field(default=12, ge=1, le=168)
+    login_rate_limit: int = Field(default=5, ge=1, le=100)
+    register_rate_limit: int = Field(default=3, ge=1, le=50)
+    auth_rate_window_seconds: int = Field(default=60, ge=1, le=3600)
 
     @property
     def cors_origins(self) -> list[str]:
-        """Return a normalized list from the comma-separated CORS_ORIGINS setting."""
-        return [
-            origin.strip().rstrip("/")
-            for origin in self.cors_origins_raw.split(",")
-            if origin.strip()
-        ]
+        return [origin.strip().rstrip("/") for origin in self.cors_origins_raw.split(",") if origin.strip()]
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":
@@ -44,26 +44,27 @@ class Settings(BaseSettings):
         if len(secret) < 32 or any(
             marker in secret.lower() for marker in ("replace-this", "change-me", "example")
         ):
-            raise ValueError(
-                "Production requires SECRET_KEY to be a unique random value of at least 32 characters."
-            )
+            raise ValueError("Production requires a unique random SECRET_KEY of at least 32 characters.")
 
-        if self.database_url.startswith("sqlite"):
+        if not self.database_url.startswith((
+            "postgresql://", "postgresql+psycopg://", "postgresql+psycopg2://"
+        )):
             raise ValueError("Production must use a configured PostgreSQL DATABASE_URL.")
+
+        if not self.redis_url or not self.redis_url.startswith("rediss://"):
+            raise ValueError("Production requires a TLS-protected REDIS_URL (rediss://) for shared rate limits.")
 
         origins = self.cors_origins
         if not origins:
             raise ValueError("Production requires an explicit CORS_ORIGINS allowlist.")
         for origin in origins:
             parsed = urlsplit(origin)
-            if parsed.scheme != "https" or not parsed.netloc or parsed.path:
-                raise ValueError(
-                    "Production CORS origins must be HTTPS origins without paths or wildcards."
-                )
+            if parsed.scheme != "https" or not parsed.netloc or parsed.path or parsed.query or parsed.fragment or "*" in origin:
+                raise ValueError("Production CORS origins must be HTTPS origins without paths, wildcards, or query strings.")
         return self
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Cache settings once per process; tests can instantiate Settings directly."""
+    """Cache settings once per process; tests may instantiate Settings directly."""
     return Settings()
