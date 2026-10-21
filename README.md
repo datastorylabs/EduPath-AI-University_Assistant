@@ -35,7 +35,7 @@ Phase 2 added:
 - Opaque server-side sessions; raw session tokens are placed only in an HttpOnly cookie, while token digests are stored in the database.
 - Session expiration, revocation, logout-all, and inactive-account rejection.
 - Double-submit CSRF validation on login, registration, logout, and logout-all.
-- Generic login failures, sanitized 422 errors that do not echo rejected input, and no-store headers for auth routes.
+- Generic login failures, sanitized 422 errors that do not echo rejected input, and no-store headers for auth routes. CSRF bootstrap preserves the bound token for a live session rather than invalidating it on page load.
 - Basic security headers, low-PII security audit events, and authentication rate limits.
 - A process-local fixed-window rate limiter for development/test. Production configuration requires a TLS-protected Redis URL for shared limits and fails closed if Redis is unavailable.
 
@@ -76,7 +76,7 @@ alembic -c backend/alembic.ini check
 
 ## Security limitations — not production-ready
 
-Phase 2 provides foundational authentication, not a complete security certification. Email verification, password recovery, MFA, account administration, and a frontend login integration are not implemented. No private document/profile CRUD endpoints have yet been wired to the owner-checking helper, so per-resource isolation must be added and tested before storing personal documents. Redis/PostgreSQL production services have not been exercised in this environment. Login rate limiting is currently IP-based; production deployments must configure trusted proxies correctly, and a broader abuse-control policy should be reviewed.
+Phase 2 provides foundational authentication, not a complete security certification. Email verification, password recovery, MFA, account administration, and a frontend login integration are not implemented. Registration currently returns a conflict for duplicate email addresses; preventing account enumeration requires an email-verification flow and is not claimed here. No private document/profile CRUD endpoints have yet been wired to the owner-checking helper, so per-resource isolation must be added and tested before storing personal documents. Redis/PostgreSQL production services have not been exercised in this environment. Login rate limiting is currently IP-based; production deployments must configure trusted proxies correctly, and a broader abuse-control policy should be reviewed.
 
 Private document storage, retention/deletion, account-data deletion, malware scanning, and the Streamlit-to-API trust boundary remain future work. Do not use real student documents in a public demo until those protections exist.
 
