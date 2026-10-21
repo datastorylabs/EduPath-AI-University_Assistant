@@ -65,20 +65,47 @@ def _create_login_response(
 
 
 @router.get("/csrf", dependencies=[Depends(_csrf_rate_limit)])
-def get_csrf_token(response: Response, settings: Settings = Depends(get_settings)) -> dict[str, str]:
-    """Bootstrap a double-submit CSRF token before login or registration."""
-    csrf_token = secrets.token_urlsafe(32)
+def get_csrf_token(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, str]:
+    """Bootstrap CSRF for anonymous clients or preserve/rotate a live session token."""
+    raw_session = request.cookies.get(SESSION_COOKIE)
+    if raw_session:
+        auth_session = db.scalar(
+            select(AuthSession).where(
+                AuthSession.token_hash == token_digest(raw_session),
+                AuthSession.revoked_at.is_(None),
+                AuthSession.expires_at > utcnow(),
+            )
+        )
+        if auth_session is not None:
+            existing_csrf = request.cookies.get(CSRF_COOKIE, "")
+            if existing_csrf and secrets.compare_digest(
+                token_digest(existing_csrf), auth_session.csrf_token_hash
+            ):
+                # Re-bootstrap without invalidating the live session's current token.
+                return {"csrf_token": existing_csrf}
+            csrf_token = secrets.token_urlsafe(32)
+            auth_session.csrf_token_hash = token_digest(csrf_token)
+            db.commit()
+        else:
+            csrf_token = secrets.token_urlsafe(32)
+    else:
+        csrf_token = secrets.token_urlsafe(32)
+
     response.set_cookie(
         key=CSRF_COOKIE,
         value=csrf_token,
-        max_age=1800,
+        max_age=settings.session_ttl_hours * 3600 if raw_session else 1800,
         httponly=False,
         secure=settings.app_env == "production",
         samesite="lax",
         path="/",
     )
     return {"csrf_token": csrf_token}
-
 
 @router.post(
     "/register",
