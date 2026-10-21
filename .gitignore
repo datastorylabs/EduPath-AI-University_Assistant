@@ -1,31 +1,40 @@
-# Byte-compiled / optimized / DLL files
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Virtual environments
+# Virtual environments and local environment files
 venv/
-.env/
-.env
 .venv/
+.env
+.env.*
+!.env.example
+
+# Local databases and runtime uploads
+*.db
+*.sqlite
+*.sqlite3
+instance/
+uploads/
+data/student_profile.json
+data/sessions/
 
 # Streamlit secrets
 .secrets/
 secrets.toml
 .streamlit/secrets.toml
 
-# Data generated at runtime
-data/student_profile.json
-data/sessions/
-
-# RAG vector index (rebuilt from data/policies/)
+# Rebuildable retrieval index
 .rag_cache/
 
-# IDE
+# IDE files
 .vscode/
 .idea/
 *.swp
 
-# Streamlit runtime artifacts
+# Logs and process artifacts
 streamlit*.log
 *.pid
