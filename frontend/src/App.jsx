@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiError, apiRequest, safeHttpUrl } from "./api.js";
+import { ApiError, apiRequest, bootstrapCsrf, safeHttpUrl } from "./api.js";
 
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: "home" },
@@ -908,7 +908,7 @@ export default function App() {
     let alive = true;
     const bootstrap = async () => {
       try {
-        const csrfResponse = await apiRequest("/auth/csrf");
+        const csrfResponse = await bootstrapCsrf();
         if (!alive) return;
         setCsrfToken(csrfResponse.csrf_token || "");
         const currentUser = await apiRequest("/auth/me").catch((problem) => {
@@ -939,7 +939,7 @@ export default function App() {
     setError("");
     setToast("");
     try {
-      const csrf = await apiRequest("/auth/csrf");
+      const csrf = await bootstrapCsrf();
       setCsrfToken(csrf.csrf_token || "");
       const response = await apiRequest("/auth/" + mode, {
         method: "POST",
