@@ -126,7 +126,7 @@ def detect_intent(question: str) -> dict[str, Any]:
         "university_name": detected_name,
         "university_ids": mentioned_ids,
         "category": detected_category,
-        "compare_universities": wants_university_alternatives(q),
+        "compare_universities": wants_university_alternatives(q) or len(mentioned_ids) >= 2,
     }
 
 
@@ -219,7 +219,10 @@ class Retriever:
                 logger.warning("University-scoped retrieval failed (%s)", type(exc).__name__)
                 results = []
 
-        if len(results) < MIN_UNIVERSITY_RESULTS:
+        # If the user explicitly named a university with no indexed policy,
+        # do not fill the answer with unrelated evidence from a different school.
+        may_broaden = not (intent["university_id"] and not results)
+        if len(results) < MIN_UNIVERSITY_RESULTS and may_broaden:
             try:
                 broad = self._collection.query(query_texts=[question], n_results=k)
                 seen = {(r.university_id, r.program_id, r.category) for r in results}
