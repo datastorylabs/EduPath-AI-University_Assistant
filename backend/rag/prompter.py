@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.rag.config import MAX_HISTORY_TURNS, PROFILE_SLICE_KEYWORDS
-from backend.rag.retriever import RetrievedChunk
+from backend.rag.retriever import RetrievedChunk, wants_university_alternatives
 
 
 SYSTEM_PROMPT = """You are EduPath AI, a conversational admissions advisor for students applying to Pakistani universities.
@@ -182,6 +182,35 @@ def _format_history(history: list[dict[str, str]]) -> str:
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
+def _current_question_contract(question: str) -> str:
+    """Make the latest user intent explicit so the model does not default to a checklist."""
+    q = " ".join((question or "").casefold().split())
+    if wants_university_alternatives(question):
+        return (
+            "CURRENT INTENT: UNIVERSITY ALTERNATIVES / COMPARISON. This request takes priority "
+            "over the previously selected university and any earlier action plan. First answer "
+            "the student's concern by naming relevant alternative universities/programs from "
+            "the supplied evidence/catalog. Explain fit using recorded qualification, marks, "
+            "subjects, location/preferences if available, and show unknown criteria honestly. "
+            "Do not respond with 'register again', a generic next-step list, or only the current "
+            "university. If fewer than two evidence-backed alternatives are available, give the "
+            "ones supported and clearly state the catalog limitation."
+        )
+    if any(term in q for term in ("why", "what does", "explain", "how come")):
+        return (
+            "CURRENT INTENT: EXPLANATION. Explain the specific issue asked about before offering "
+            "any next step. Do not replace the explanation with an action checklist."
+        )
+    if any(term in q for term in ("compare", "difference between", "which is better")):
+        return (
+            "CURRENT INTENT: COMPARISON. Compare the named options on relevant criteria and "
+            "trade-offs; do not answer with a generic application workflow."
+        )
+    return (
+        "CURRENT INTENT: DIRECT QUESTION. Answer the latest question in the first sentence. "
+        "Use only the sections relevant to this question and include a next step only if useful."
+    )
+
 def build_prompt(
     question: str,
     evidence: list[RetrievedChunk],
@@ -206,12 +235,12 @@ def build_prompt(
     ]
     if history_block:
         sections.append(history_block)
+    sections.append(_current_question_contract(question))
     sections.append(
         "First identify what the latest question is asking for. Use the evidence and profile "
-        "that are relevant to that request. If the student is asking for alternatives, do not "
-        "respond with a registration/action checklist: compare available programs across "
-        "universities and disclose which criteria are not known. If the evidence does not cover "
-        "a requested detail, say precisely what is missing rather than guessing."
+        "that are relevant to that request. If the evidence does not cover a requested detail, "
+        "say precisely what is missing rather than guessing. Never let an earlier action plan "
+        "override the student's latest concern."
     )
 
     return PromptBundle(
