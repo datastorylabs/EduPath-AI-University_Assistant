@@ -13,7 +13,7 @@ from backend.app.config import Settings, get_settings
 from backend.app.database import get_db
 from backend.app.models.conversation import Conversation, ConversationMessage
 from backend.app.models.student_profile import StudentProfile
-from backend.app.schemas.persistence import (
+from backend.app.persistence_schemas import (
     ConversationCreateRequest,
     ConversationDetailResponse,
     ConversationMessageInput,
