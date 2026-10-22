@@ -39,14 +39,14 @@ Phase 2 added:
 - Basic security headers, low-PII security audit events, and authentication rate limits.
 - A process-local fixed-window rate limiter for development/test. Production configuration requires a TLS-protected Redis URL for shared limits and fails closed if Redis is unavailable.
 
-Phase 4 is in progress and adds:
+Phase 4 added:
 - An optional academic profile persisted per signed-in user, with validation for marks, qualification, subjects, subject marks, and equivalency status.
 - Private conversation records and ordered user-message history stored in the database.
 - Owner-scoped list/read/write/delete operations. A foreign user's record is returned as not found rather than exposing that it exists.
 - No-store response headers for personal profiles and conversation history, plus low-PII audit events for profile/conversation changes.
 - Alembic migration 0003_profiles_and_conversations. SQLite foreign-key enforcement is enabled for local development.
 
-**Current storage limitation:** saved profiles are not yet automatically loaded into the existing RAG advisor or eligibility endpoint. User messages can be saved, but the frontend and advisor are not yet wired together to generate and persist assistant replies. Uploaded files/OCR output, retention automation, whole-account deletion, and production database validation remain future work.
+**Current integration limitation:** the React workspace now consumes saved profiles and can run a deterministic, citation-carrying programme check. The legacy Streamlit RAG advisor remains separate, and open-ended natural-language AI answers are not connected to this new interface. Uploaded files/OCR storage, retention automation, whole-account deletion, and production database verification remain future work.
 
 The session cookie is HttpOnly; the CSRF cookie is intentionally readable by frontend JavaScript so it can be returned in the X-CSRF-Token header. Cookies use SameSite=Lax, with Secure enabled in production. Production also requires PostgreSQL, a non-placeholder secret of at least 32 characters, and explicit HTTPS CORS origins.
 
@@ -69,10 +69,25 @@ Local endpoints:
 - GET /health/live and GET /health/ready — liveness and database readiness.
 - GET /auth/csrf, POST /auth/register, POST /auth/login, GET /auth/me, POST /auth/logout, and POST /auth/logout-all — authentication/session endpoints.
 - GET /profile/me, PUT /profile/me, and DELETE /profile/me — read, create/replace, or delete the signed-in user's academic profile.
-- POST /conversations, GET /conversations, GET /conversations/{id}, POST /conversations/{id}/messages, and DELETE /conversations/{id} — private conversation metadata and user-message history.
+- POST /conversations, GET /conversations, GET /conversations/{id}, POST /conversations/{id}/messages, POST /conversations/{id}/program-check, and DELETE /conversations/{id} — private conversation history and deterministic profile-based programme checks.
 - /admissions/catalog, /admissions/universities, /admissions/sources, /admissions/rules, /admissions/evaluate, and /admissions/compare — public admissions catalogue and decision-support APIs.
 
 State-changing authenticated endpoints require the CSRF token returned by the signed-in session and sent in the X-CSRF-Token header. Interactive API docs are available at /docs in non-production mode only.
+
+### React frontend for hackathon demos (Phase 5)
+
+Use a second terminal after the API is running:
+
+~~~bash
+cd frontend
+npm install --ignore-scripts --no-audit --no-fund
+npm run dev
+~~~
+
+Open the local address shown by Vite, normally http://localhost:5173. The development server proxies /api to the FastAPI service at http://127.0.0.1:8000 so authentication cookies stay same-origin in the browser. The production bundle can be built with npm run build from the frontend folder. See frontend/README.md for the complete setup and safety notes.
+
+The workspace includes sign-in/registration, saved academic profiles, programme eligibility checks, and a guided advisor history. Its advisor checks use the deterministic source-verified rules and display citations; they do not pretend to be open-ended AI chat or predict admission probability. It does not bypass authentication or store sessions, passwords, profiles, or history in localStorage/sessionStorage.
+
 
 Tests and migrations:
 
@@ -84,7 +99,7 @@ alembic -c backend/alembic.ini check
 
 ## Security limitations — not production-ready
 
-Phase 2 is foundational authentication, not a complete security certification. Email verification, password recovery, MFA, account administration, and frontend login integration are not implemented. Registration currently returns a conflict for duplicate email addresses; account enumeration protection requires a broader email-verification flow and is not claimed here. Academic profiles and conversations are now owner-scoped in the API, but uploaded documents still have no private API storage boundary. Redis/PostgreSQL production services have not been exercised in this environment. Login rate limiting is currently IP-based; production deployments must configure trusted proxies correctly, and broader abuse controls should be reviewed.
+Phase 2 is foundational authentication, not a complete security certification. Email verification, password recovery, MFA, account administration, and integration of the legacy Streamlit UI with the new API are not implemented. The React workspace covers login and the new profile/conversation APIs, but is still a demo-oriented incremental integration. Registration currently returns a conflict for duplicate email addresses; account enumeration protection requires a broader email-verification flow and is not claimed here. Academic profiles and conversations are now owner-scoped in the API, but uploaded documents still have no private API storage boundary. Redis/PostgreSQL production services have not been exercised in this environment. Login rate limiting is currently IP-based; production deployments must configure trusted proxies correctly, and broader abuse controls should be reviewed.
 
 Private document storage, malware scanning, document retention/deletion, whole-account deletion, trusted-proxy configuration, and the Streamlit-to-API trust boundary remain future work. Do not use real student documents in a public demo until those protections exist.
 
