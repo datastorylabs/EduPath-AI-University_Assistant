@@ -38,3 +38,9 @@ secrets.toml
 # Logs and process artifacts
 streamlit*.log
 *.pid
+
+# React/Vite frontend outputs and local settings
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
