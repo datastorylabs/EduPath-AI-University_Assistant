@@ -107,7 +107,7 @@ def answer_alternative_universities(
     if not compare_named:
         if selected_uid:
             excluded_ids.add(selected_uid)
-        if named_ids and re.search(r"\\b(?:other\\s+than|apart\\s+from|besides|instead\\s+of)\\b", question.casefold()):
+        if named_ids and re.search(r"\b(?:other\s+than|apart\s+from|besides|instead\s+of)\b", question.casefold()):
             excluded_ids.update(named_ids)
 
     candidates: list[dict[str, Any]] = []
