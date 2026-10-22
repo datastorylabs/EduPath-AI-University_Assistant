@@ -117,3 +117,26 @@ class ConversationMessageResponse(BaseModel):
 
 class ConversationDetailResponse(ConversationSummaryResponse):
     messages: list[ConversationMessageResponse]
+
+
+class AdvisorProgramCheckRequest(BaseModel):
+    """Select a supported deterministic advisor workflow; raw text is never sent to an LLM."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["find_matches", "show_gaps"] = "find_matches"
+
+
+class AdvisorProgramCheckResponse(BaseModel):
+    """A saved, citation-carrying profile check for the signed-in user."""
+
+    user_message: ConversationMessageResponse
+    assistant_message: ConversationMessageResponse
+    summary: str
+    notice: str
+    total_rules: int
+    eligible_count: int
+    conditional_count: int
+    ineligible_count: int
+    indeterminate_count: int
+    results: list[dict[str, object]]
