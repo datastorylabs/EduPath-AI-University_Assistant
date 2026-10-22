@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -18,7 +18,14 @@ def create_database_engine(database_url: str) -> Engine:
         kwargs["connect_args"] = {"check_same_thread": False}
         if ":memory:" in database_url:
             kwargs["poolclass"] = StaticPool
-    return create_engine(database_url, **kwargs)
+    engine = create_engine(database_url, **kwargs)
+    if database_url.startswith("sqlite"):
+        @event.listens_for(engine, "connect")
+        def _enable_sqlite_foreign_keys(connection, _record) -> None:
+            cursor = connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+    return engine
 
 
 engine = create_database_engine(get_settings().database_url)
