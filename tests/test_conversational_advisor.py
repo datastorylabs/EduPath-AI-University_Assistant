@@ -199,3 +199,12 @@ def test_alternative_fallback_never_treats_missing_minimum_as_a_pass():
     )
     assert "Possible option" in answer or "Needs checking" in answer
     assert "meet the catalog's listed baseline" not in answer
+
+def test_follow_up_after_applying_still_answers_alternative_question_first():
+    from backend.rag.prompter import _current_question_contract
+
+    question = "If I apply to this now, what about some other uni options?"
+    assert wants_university_alternatives(question)
+    contract = _current_question_contract(question)
+    assert "UNIVERSITY ALTERNATIVES / COMPARISON" in contract
+    assert "register again" in contract
