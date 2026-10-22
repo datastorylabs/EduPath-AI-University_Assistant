@@ -1,9 +1,4 @@
-"""University-aware policy retrieval.
-
-If the question mentions a known university, filter retrieval to that
-university's chunks first; broaden only if too few results come back.
-If the question signals a policy category, bias toward that category.
-"""
+"""University-aware policy retrieval with comparison-aware scope selection."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,7 +10,6 @@ from typing import Any
 from backend.data_loader import load_universities
 from backend.rag.config import (
     CATEGORY_KEYWORDS,
-    COLLECTION_NAME,
     DEFAULT_K,
     MIN_UNIVERSITY_RESULTS,
     UNIVERSITY_ALIASES,
@@ -23,6 +17,28 @@ from backend.rag.config import (
 from backend.rag.indexer import build_collection, get_persistent_client
 
 logger = logging.getLogger(__name__)
+
+_COMPARISON_PATTERNS = (
+    r"\bother\s+(?:universit(?:y|ies)|uni(?:s)?)\b",
+    r"\b(?:another|alternative|alternatives|backup|similar)\s+(?:universit(?:y|ies)|uni(?:s)?|program(?:me)?|option(?:s)?)\b",
+    r"\b(?:universit(?:y|ies)|uni(?:s)?)\s+options?\b",
+    r"\bother\s+options?\b",
+    r"\bcompare\b",
+    r"\bcomparison\b",
+    r"\bcompared\s+(?:with|to)\b",
+    r"\bwhat\s+else\b",
+    r"\belsewhere\b",
+    r"\bother\s+than\b",
+    r"\bapart\s+from\b",
+    r"\bbesides\b",
+    r"\binstead\s+of\b",
+)
+
+
+def wants_university_alternatives(question: str) -> bool:
+    """True when the latest question asks to broaden beyond one selected program."""
+    q = re.sub(r"\s+", " ", (question or "").casefold())
+    return any(re.search(pattern, q) for pattern in _COMPARISON_PATTERNS)
 
 
 @dataclass(frozen=True)
@@ -45,13 +61,7 @@ class RetrievedChunk:
 
 @functools.lru_cache(maxsize=1)
 def _load_alias_table() -> dict[str, str]:
-    """Build alias -> canonical university_id mapping. Cached for the process lifetime.
-
-    Merges explicit aliases from config.UNIVERSITY_ALIASES with aliases derived
-    from the university dataset (id, name, full_name). Explicit aliases win on
-    conflict so "fast" always resolves to fast-nuces even if another university
-    has a similar name.
-    """
+    """Build alias -> canonical university_id mapping from config and catalog."""
     merged: dict[str, str] = {}
     try:
         data = load_universities()
@@ -64,30 +74,34 @@ def _load_alias_table() -> dict[str, str]:
             continue
         for raw in (uni.get("id"), uni.get("name"), uni.get("full_name")):
             if raw:
-                merged.setdefault(raw.strip().lower(), uid)
+                merged.setdefault(raw.strip().casefold(), uid)
 
     for uid, aliases in UNIVERSITY_ALIASES.items():
         for alias in aliases:
-            merged[alias.strip().lower()] = uid
+            merged[alias.strip().casefold()] = uid
 
     return merged
 
 
-def detect_intent(question: str) -> dict[str, Any]:
-    q = question.lower()
-    aliases = _load_alias_table()
-
-    detected_id: str | None = None
-    detected_name: str | None = None
-    # Prefer longer alias matches first so "fast-nuces" beats the common word "fast"
-    # when both could match in a compound phrase.
-    for alias in sorted(aliases.keys(), key=len, reverse=True):
+def _mentioned_university_ids(question: str, aliases: dict[str, str]) -> list[str]:
+    q = (question or "").casefold()
+    found: list[str] = []
+    for alias in sorted(aliases, key=len, reverse=True):
         if re.search(rf"\b{re.escape(alias)}\b", q):
-            detected_id = aliases[alias]
-            break
+            uid = aliases[alias]
+            if uid not in found:
+                found.append(uid)
+    return found
 
+
+def detect_intent(question: str) -> dict[str, Any]:
+    q = (question or "").casefold()
+    aliases = _load_alias_table()
+    mentioned_ids = _mentioned_university_ids(q, aliases)
+
+    detected_id: str | None = mentioned_ids[0] if mentioned_ids else None
+    detected_name: str | None = None
     if detected_id is not None:
-        # Resolve canonical display name from the dataset when possible.
         try:
             data = load_universities()
             for uni in data.get("universities", []) or []:
@@ -110,12 +124,20 @@ def detect_intent(question: str) -> dict[str, Any]:
     return {
         "university_id": detected_id,
         "university_name": detected_name,
+        "university_ids": mentioned_ids,
         "category": detected_category,
+        "compare_universities": wants_university_alternatives(q),
     }
 
 
 class Retriever:
-    """Wraps a ChromaDB collection for university/category-filtered retrieval."""
+    """University-aware retriever.
+
+    A named university in the latest question overrides the current UI selection.
+    Alternative/comparison questions deliberately widen retrieval and request a
+    representative result from each relevant university instead of pinning to
+    the selected university.
+    """
 
     def __init__(self, collection: Any) -> None:
         self._collection = collection
@@ -126,15 +148,63 @@ class Retriever:
         k: int = DEFAULT_K,
         university_id: str | None = None,
     ) -> list[RetrievedChunk]:
-        """Return up to ``k`` chunks relevant to ``question``.
-
-        When ``university_id`` is supplied, it takes precedence over any
-        university detected from the question text — this lets the advisor
-        page pass the student's session-state selection and avoid cross-
-        university noise on generic questions like "When is the deadline?".
-        """
         intent = detect_intent(question)
-        effective_uni = university_id or intent["university_id"]
+        mentioned = intent["university_ids"]
+        compare = bool(intent["compare_universities"])
+
+        if compare:
+            aliases = _load_alias_table()
+            all_ids = list(dict.fromkeys(aliases.values()))
+            q = (question or "").casefold()
+            # "Options besides NUST" should exclude the named comparison anchor.
+            excludes_named_anchor = bool(
+                mentioned
+                and re.search(r"\b(?:other\s+than|apart\s+from|besides|instead\s+of)\b", q)
+            )
+            if len(mentioned) >= 2:
+                candidate_ids = mentioned
+            elif excludes_named_anchor:
+                candidate_ids = [uid for uid in all_ids if uid not in set(mentioned)]
+            elif not mentioned and university_id:
+                candidate_ids = [uid for uid in all_ids if uid != university_id]
+            else:
+                candidate_ids = all_ids
+
+            # A one-result query per university makes comparison retrieval diverse
+            # even when the vector store otherwise returns only the selected school.
+            results: list[RetrievedChunk] = []
+            for uid in candidate_ids:
+                try:
+                    hits = self._collection.query(
+                        query_texts=[question],
+                        n_results=1,
+                        where={"university_id": uid},
+                    )
+                    items = _materialize(hits)
+                    if items:
+                        results.append(items[0])
+                except Exception as exc:
+                    logger.debug("Comparison retrieval skipped for %s (%s)", uid, type(exc).__name__)
+
+            if len(results) < min(k, 2):
+                try:
+                    broad = self._collection.query(query_texts=[question], n_results=k)
+                    seen = {(r.university_id, r.program_id, r.category) for r in results}
+                    for chunk in _materialize(broad):
+                        key = (chunk.university_id, chunk.program_id, chunk.category)
+                        if key not in seen:
+                            results.append(chunk)
+                            seen.add(key)
+                except Exception as exc:
+                    logger.warning("Comparison-wide retrieval failed (%s)", type(exc).__name__)
+
+            if intent["category"]:
+                results.sort(key=lambda c: (0 if c.category == intent["category"] else 1, c.distance))
+            return results[:k]
+
+        # For a normal follow-up, explicitly named university takes priority over
+        # the dropdown selection. Otherwise preserve the selected-school context.
+        effective_uni = intent["university_id"] or university_id
         results: list[RetrievedChunk] = []
 
         if effective_uni:
@@ -146,7 +216,7 @@ class Retriever:
                 )
                 results.extend(_materialize(hits))
             except Exception as exc:
-                logger.warning("University-scoped retrieval failed: %s", exc)
+                logger.warning("University-scoped retrieval failed (%s)", type(exc).__name__)
                 results = []
 
         if len(results) < MIN_UNIVERSITY_RESULTS:
@@ -159,12 +229,10 @@ class Retriever:
                         results.append(chunk)
                         seen.add(key)
             except Exception as exc:
-                logger.error("Broad retrieval fallback failed: %s", exc)
+                logger.error("Broad retrieval fallback failed (%s)", type(exc).__name__)
 
         if intent["category"] and len(results) > 1:
-            results.sort(
-                key=lambda c: (0 if c.category == intent["category"] else 1, c.distance)
-            )
+            results.sort(key=lambda c: (0 if c.category == intent["category"] else 1, c.distance))
 
         return results[:k]
 
