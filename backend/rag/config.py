@@ -75,4 +75,9 @@ UNIVERSITY_ALIASES: dict[str, tuple[str, ...]] = {
     "comsats": ("comsats", "comsats university islamabad"),
     "uet": ("uet", "university of engineering and technology lahore"),
     "muet": ("muet", "mehran university of engineering and technology"),
+    "giki": ("giki", "ghulam ishaq khan institute", "ghulam ishaq khan institute of engineering sciences and technology"),
+    "ned": ("ned", "ned university", "ned university of engineering and technology"),
+    "university-of-karachi": ("uok", "university of karachi", "karachi university"),
+    "punjab-university": ("pu", "punjab university", "university of the punjab"),
+    "iba-karachi": ("iba", "iba karachi", "institute of business administration karachi"),
 }
