@@ -29,5 +29,14 @@ jobs:
       - name: Validate admissions JSON data
         run: |
           python -c "import json; json.load(open('backend/app/data/admissions_sources.json', encoding='utf-8')); json.load(open('backend/app/data/admissions_rules.json', encoding='utf-8'))"
+      - name: Verify clean SQLite migrations and ORM schema
+        env:
+          APP_ENV: test
+          DATABASE_URL: sqlite+pysqlite:///./edupath-ci.db
+        run: |
+          rm -f edupath-ci.db
+          alembic -c backend/alembic.ini upgrade head
+          alembic -c backend/alembic.ini current
+          alembic -c backend/alembic.ini check
       - name: Run API, source registry, deterministic rules, and conversational advisor tests
         run: python -m pytest -q tests/api tests/test_conversational_advisor.py
