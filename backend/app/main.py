@@ -14,14 +14,15 @@ from sqlalchemy.orm import Session
 from backend.app.config import get_settings
 from backend.app.database import get_db
 from backend.app.routers.auth import router as auth_router
+from backend.app.routers.admissions import router as admissions_router
 
 settings = get_settings()
 logger = logging.getLogger("edupath.api")
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.2.0",
-    description="Incremental API foundation for Pakistan-specific university admissions guidance.",
+    version="0.3.0",
+    description="Security-first API for source-provenanced Pakistan undergraduate admissions guidance.",
     docs_url=None if settings.app_env == "production" else "/docs",
     redoc_url=None if settings.app_env == "production" else "/redoc",
     openapi_url=None if settings.app_env == "production" else "/openapi.json",
@@ -56,6 +57,7 @@ async def apply_security_headers(request: Request, call_next):
 
 
 app.include_router(auth_router)
+app.include_router(admissions_router)
 
 
 @app.exception_handler(RequestValidationError)
