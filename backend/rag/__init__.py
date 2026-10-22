@@ -153,7 +153,7 @@ def _rule_based_fallback(
     profile = profile or {}
     eligibility = eligibility or {}
 
-    if wants_university_alternatives(question):
+    if wants_university_alternatives(question) or detect_intent(question).get("compare_universities"):
         return answer_alternative_universities(
             question,
             profile,
