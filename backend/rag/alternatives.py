@@ -226,6 +226,44 @@ def answer_alternative_universities(
             lines.append("- A reliable closing-merit cutoff is not recorded; I won't estimate your admission chances.")
         if item["source_url"]:
             lines.append(f"- Official starting point: {item['source_url']}")
+    if not compare_named:
+        target_name = str(selected_program.get("name", "")).casefold()
+        target_category = str(selected_program.get("category", "")).casefold()
+        if any(term in target_name for term in COMPUTING_TERMS) or target_category in {"computing", "computer science"}:
+            extra_ids = {"giki", "iba-karachi"}
+        elif "engineering" in target_name or target_category == "engineering":
+            extra_ids = {"giki", "ned"}
+        elif any(term in target_name for term in ("business", "accounting", "finance")) or target_category == "business":
+            extra_ids = {"iba-karachi"}
+        else:
+            extra_ids = set()
+
+        catalog_ids = {str(uni.get("id")) for uni in universities}
+        if extra_ids - catalog_ids:
+            try:
+                from backend.app.services.admissions_catalog import load_sources_registry
+                extra_sources = load_sources_registry()["sources"]
+            except Exception:
+                extra_sources = []
+            extra_lines: list[str] = []
+            for extra_id in sorted(extra_ids - catalog_ids):
+                records = [source for source in extra_sources if source.get("university_id") == extra_id]
+                if not records:
+                    continue
+                source = next(
+                    (record for record in records if record.get("verification_status") == "partially_verified"),
+                    records[0],
+                )
+                extra_lines.append(
+                    f"- **{source.get('university_id')}**: {source.get('scope', 'Official source located; program-level details are incomplete.')} "
+                    f"Status: {source.get('verification_status', 'unverified')}. "
+                    f"Official source: {source.get('url', '(not recorded)')}. "
+                    "Not profile-scored because a cycle-specific program rule is not in the structured catalog."
+                )
+            if extra_lines:
+                lines.append("**Additional official leads (not yet scored against your profile)**")
+                lines.extend(extra_lines)
+
     lines.append(
         "These are shortlist leads, not admission guarantees. Campus availability and intake rules can differ. "
         "I have not changed your selected program. Tell me your preferred city or budget if you want the shortlist narrowed."
