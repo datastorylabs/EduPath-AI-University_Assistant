@@ -198,10 +198,28 @@ def list_universities(*, today: date | None = None) -> list[dict[str, Any]]:
     """Group universities and expose source coverage without implying full research."""
     registry = load_sources_registry()
     source_index = _source_index(registry)
+    university_names = {
+        "fast-nuces": "FAST-NUCES",
+        "nust": "NUST",
+        "comsats": "COMSATS University Islamabad",
+        "giki": "GIKI",
+        "lums": "LUMS",
+        "uet-lahore": "UET Lahore",
+        "muet": "Mehran University of Engineering and Technology (MUET)",
+        "ned": "NED University of Engineering and Technology",
+        "university-of-karachi": "University of Karachi",
+        "punjab-university": "University of the Punjab",
+        "iba-karachi": "Institute of Business Administration Karachi (IBA)",
+    }
     records: dict[str, dict[str, Any]] = {}
     for source in registry["sources"]:
         uid = str(source["university_id"])
-        item = records.setdefault(uid, {"university_id": uid, "sources": [], "verified_rule_count": 0})
+        item = records.setdefault(uid, {
+            "university_id": uid,
+            "university_name": university_names.get(uid, uid),
+            "sources": [],
+            "verified_rule_count": 0,
+        })
         item["sources"].append({
             "source_id": source["source_id"],
             "title": source["title"],
@@ -215,7 +233,12 @@ def list_universities(*, today: date | None = None) -> list[dict[str, Any]]:
     for rule in list_available_rules(today=today):
         item = records.setdefault(
             str(rule["university_id"]),
-            {"university_id": rule["university_id"], "sources": [], "verified_rule_count": 0},
+            {
+                "university_id": rule["university_id"],
+                "university_name": university_names.get(str(rule["university_id"]), str(rule["university_id"])),
+                "sources": [],
+                "verified_rule_count": 0,
+            },
         )
         if rule["evaluation_available"]:
             item["verified_rule_count"] += 1
@@ -228,10 +251,11 @@ def list_universities(*, today: date | None = None) -> list[dict[str, Any]]:
             for status in ("verified", "partially_verified", "unverified", "stale", "conflicting")
             if status in statuses
         }
-        item["research_complete"] = item["verified_rule_count"] > 0 and all(
-            s["verification_status"] in {"verified", "partially_verified"}
-            for s in item["sources"]
-        )
+        # The current dataset is intentionally a partial coverage registry;
+        # one or two verified rules must never be presented as university-wide
+        # admissions research completeness.
+        item["has_evaluable_rules"] = item["verified_rule_count"] > 0
+        item["research_complete"] = False
     return sorted(records.values(), key=lambda item: item["university_id"])
 
 
