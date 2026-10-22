@@ -7,6 +7,7 @@ Catches authentication, rate-limit, and timeout errors into clean messages.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 import os
 import sys
 from typing import Any
@@ -195,7 +196,13 @@ def generate(bundle: PromptBundle) -> LlmResponse:
         return LlmResponse(answer="", sources=[], grounded=False, error=error, model=model_used)
 
     sources = [chunk.source_label for chunk in bundle.evidence]
-    grounded = any(tag in answer for tag in ["[verified fact]", "[calculation]", "[recommendation]", "[uncertain]"])
+    tagged = any(tag in answer for tag in ["[verified fact]", "[calculation]", "[recommendation]", "[uncertain]"])
+    cited_indexes = {
+        int(index)
+        for index in re.findall(r"\[(\d+)\]", answer)
+        if 1 <= int(index) <= len(sources)
+    }
+    grounded = tagged or bool(cited_indexes)
 
     return LlmResponse(answer=answer, sources=sources, grounded=grounded, error=None, model=model_used)
 
