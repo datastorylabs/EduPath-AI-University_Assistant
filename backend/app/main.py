@@ -15,13 +15,14 @@ from backend.app.config import get_settings
 from backend.app.database import get_db
 from backend.app.routers.auth import router as auth_router
 from backend.app.routers.admissions import router as admissions_router
+from backend.app.routers.persistence import router as persistence_router
 
 settings = get_settings()
 logger = logging.getLogger("edupath.api")
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.3.0",
+    version="0.4.0",
     description="Security-first API for source-provenanced Pakistan undergraduate admissions guidance.",
     docs_url=None if settings.app_env == "production" else "/docs",
     redoc_url=None if settings.app_env == "production" else "/redoc",
@@ -40,7 +41,7 @@ if settings.cors_origins:
 
 @app.middleware("http")
 async def apply_security_headers(request: Request, call_next):
-    """Apply conservative API headers without caching authentication responses."""
+    """Apply conservative headers without caching authentication or private user-data responses."""
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
@@ -48,7 +49,11 @@ async def apply_security_headers(request: Request, call_next):
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
     if settings.app_env == "production" or request.url.path not in {"/docs", "/redoc", "/openapi.json"}:
         response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
-    if request.url.path.startswith("/auth/"):
+    if (
+        request.url.path.startswith("/auth/")
+        or request.url.path.startswith("/profile/")
+        or request.url.path.startswith("/conversations")
+    ):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
     if settings.app_env == "production":
@@ -58,6 +63,7 @@ async def apply_security_headers(request: Request, call_next):
 
 app.include_router(auth_router)
 app.include_router(admissions_router)
+app.include_router(persistence_router)
 
 
 @app.exception_handler(RequestValidationError)
