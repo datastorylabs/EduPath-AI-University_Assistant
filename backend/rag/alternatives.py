@@ -254,8 +254,13 @@ def answer_alternative_universities(
                     (record for record in records if record.get("verification_status") == "partially_verified"),
                     records[0],
                 )
+                extra_display_names = {
+                    "giki": "GIKI",
+                    "iba-karachi": "IBA Karachi",
+                    "ned": "NED University",
+                }
                 extra_lines.append(
-                    f"- **{source.get('university_id')}**: {source.get('scope', 'Official source located; program-level details are incomplete.')} "
+                    f"- **{extra_display_names.get(extra_id, extra_id)}**: {source.get('scope', 'Official source located; program-level details are incomplete.')} "
                     f"Status: {source.get('verification_status', 'unverified')}. "
                     f"Official source: {source.get('url', '(not recorded)')}. "
                     "Not profile-scored because a cycle-specific program rule is not in the structured catalog."
