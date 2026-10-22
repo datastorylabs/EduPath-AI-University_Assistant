@@ -12,7 +12,7 @@ from datetime import date
 from typing import Any
 
 from backend.rag import llm
-from backend.rag.alternatives import answer_alternative_universities
+from backend.rag.alternatives import answer_alternative_universities, answer_named_university
 from backend.rag.config import DEFAULT_K
 from backend.rag.indexer import build_collection, get_persistent_client, index_policies
 from backend.rag.policy_synthesis import synthesize_policy_files
@@ -20,6 +20,7 @@ from backend.rag.prompter import build_prompt
 from backend.rag.retriever import (
     RetrievedChunk,
     get_retriever,
+    detect_intent,
     wants_university_alternatives,
 )
 
@@ -158,6 +159,16 @@ def _rule_based_fallback(
             profile,
             university_id or profile.get("target_university_id"),
             program_id or profile.get("target_program_id"),
+        )
+
+    mentioned_university = detect_intent(question).get("university_id")
+    if mentioned_university and mentioned_university != university_id:
+        return answer_named_university(
+            question,
+            profile,
+            university_id,
+            program_id,
+            mentioned_university,
         )
 
     try:
