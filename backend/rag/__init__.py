@@ -65,7 +65,6 @@ def ask(
         context_fields = []
         for key, label in (
             ("target_program", "target program"),
-            ("target_university", "currently selected university"),
             ("qualification", "qualification"),
             ("aggregate", "recorded aggregate"),
             ("hssc_group", "HSSC group"),
