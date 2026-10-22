@@ -22,7 +22,7 @@ from backend.app.schemas.persistence import (
     StudentProfileInput,
     StudentProfileResponse,
 )
-from backend.app.security import AuthenticatedContext, require_authenticated_csrf, get_authenticated_context
+from backend.app.security import AuthenticatedContext, get_authenticated_context, require_authenticated_csrf
 from backend.app.services.audit import record_security_event
 from backend.app.services.conversations import append_message, find_owned_conversation
 
@@ -156,9 +156,14 @@ def get_conversation(
         .where(ConversationMessage.conversation_id == conversation.id)
         .order_by(ConversationMessage.created_at, ConversationMessage.id)
     ).all()
-    result = ConversationDetailResponse.model_validate(conversation)
-    result.messages = [ConversationMessageResponse.model_validate(message) for message in messages]
-    return result
+    return ConversationDetailResponse(
+        id=conversation.id,
+        title=conversation.title,
+        is_archived=conversation.is_archived,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+        messages=[ConversationMessageResponse.model_validate(message) for message in messages],
+    )
 
 
 @router.post(
