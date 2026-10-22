@@ -12,7 +12,7 @@ def test_api_catalog_reports_partial_research_without_claiming_everything_is_ver
     payload = response.json()
     assert payload["source_count"] >= 10
     assert payload["university_count"] >= 10
-    assert payload["evaluable_rule_count"] == 2
+    assert payload["evaluable_rule_count"] == 8
     assert "not complete national coverage" in payload["coverage_notice"].lower()
 
 
@@ -25,16 +25,18 @@ def test_source_registry_distinguishes_discovery_entries_from_rules(client):
     assert records["fast-nuces"]["research_complete"] is False
 
 
-def test_rules_api_returns_sources_and_only_two_checked_program_cycle_rules(client):
+def test_rules_api_returns_sources_and_all_checked_program_cycle_rules(client):
     all_rules = client.get("/admissions/rules").json()
-    assert all_rules["count"] == 2
+    assert all_rules["count"] == 8
     assert all(rule["evaluation_available"] for rule in all_rules["rules"])
     assert all(rule["sources"] for rule in all_rules["rules"])
 
     verified = client.get("/admissions/rules?evaluable_only=true&university_id=nust&cycle=2026-2027")
     assert verified.status_code == 200
-    assert len(verified.json()["rules"]) == 1
-    assert verified.json()["rules"][0]["program_id"] == "bs-artificial-intelligence"
+    assert len(verified.json()["rules"]) == 3
+    assert {rule["program_id"] for rule in verified.json()["rules"]} == {
+        "bs-artificial-intelligence", "bs-computer-science", "bs-data-science"
+    }
 
 
 def test_fast_ai_baseline_evaluation_is_deterministic_and_cycle_scoped(client):
@@ -124,6 +126,6 @@ def test_compare_endpoint_labels_uncovered_university_as_unknown_not_unsuitable(
     })
     assert response.status_code == 200
     payload = response.json()
-    assert [rule["university_id"] for rule in payload["rules"]] == ["nust"]
+    assert [rule["university_id"] for rule in payload["rules"]] == ["nust", "nust", "nust"]
     assert payload["university_ids_without_verified_rule"] == ["fast-nuces"]
     assert "unknown" in payload["notice"].lower()
