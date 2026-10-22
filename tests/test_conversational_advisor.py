@@ -29,7 +29,8 @@ def test_prompt_answers_latest_question_without_fixed_action_plan_template():
         ],
     )
     assert "What other universities should I consider?" in bundle.user_message
-    assert "do not respond with a registration/action checklist" in bundle.user_message
+    assert "CURRENT INTENT: UNIVERSITY ALTERNATIVES / COMPARISON" in bundle.user_message
+    assert "register again" in bundle.user_message
     assert "exact structure for every answer" not in bundle.system.lower()
     assert "12345" not in bundle.user_message
     assert "Currently selected" not in _format_profile_text_for_test(bundle.user_message)
@@ -38,6 +39,21 @@ def test_prompt_answers_latest_question_without_fixed_action_plan_template():
 def _format_profile_text_for_test(prompt: str) -> str:
     return prompt
 
+def test_explanation_question_gets_explanation_contract_not_action_plan():
+    from backend.rag.prompter import _current_question_contract
+
+    contract = _current_question_contract("Why does my qualification not match?")
+    assert "CURRENT INTENT: EXPLANATION" in contract
+    assert "action checklist" in contract
+
+
+def test_alternatives_question_contract_prioritizes_student_concern():
+    from backend.rag.prompter import _current_question_contract
+
+    contract = _current_question_contract("What about some other uni options?")
+    assert "CURRENT INTENT: UNIVERSITY ALTERNATIVES / COMPARISON" in contract
+    assert "earlier action plan" in contract
+    assert "register again" in contract
 
 class FakeCollection:
     def __init__(self):
