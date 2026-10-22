@@ -27,6 +27,20 @@
 - Added Alembic migration `0002_auth_sessions_and_audit` for sessions and security audit events.
 - Verification: `python -m pytest tests/api -q` — 24 passed. Temporary SQLite migration reached `0002_auth_sessions_and_audit (head)`; `alembic check` reported no new upgrade operations. Schema tables verified: `users`, `auth_sessions`, `security_audit_events`, and `alembic_version`.
 
+## Phase 3 — University research and deterministic eligibility: PARTIALLY IMPLEMENTED; verification pending
+
+- Added `backend/app/data/admissions_sources.json`, a structured discovery registry covering ten Pakistani universities: FAST-NUCES, NUST, COMSATS, GIKI, LUMS, UET Lahore, MUET, NED, University of Karachi, and University of the Punjab.
+- Registry records distinguish `partially_verified` from `unverified`; inclusion in the registry does not certify program-level rules. Initial official-source checks identified the FAST-NUCES undergraduate eligibility page, NUST undergraduate eligibility and merit pages, and MUET admission policy. The other institutions remain source-discovery entries requiring further review.
+- Added `backend/app/services/admissions_rules.py`, a deterministic fail-closed evaluator that returns eligible, ineligible, or indeterminate; it checks explicitly configured marks, subjects, qualification, and admission cycle. It does not use an LLM and does not estimate admission probability.
+- Added `backend/app/services/admissions_sources.py` for metadata validation and stale-source detection.
+- Added `tests/api/test_admissions_rules.py` for exact thresholds, below-threshold marks, missing data/subjects, qualification mismatch, unverified rules, cycle mismatch, invalid percentages, and source staleness.
+- **Verification status:** These new Phase 3 files were written to the GitHub working branch, but the new tests have not yet been executed in a local runtime. Do not treat Phase 3 as complete until imports, JSON parsing/schema validation, test execution, and integration with the existing catalog have been verified.
+- Existing `data/universities.json` has not been overwritten. The new source registry is a separate additive artifact pending a reviewed migration into the existing catalog schema.
+
+## Next task — Phase 3 completion checkpoint
+
+Run the API tests including `tests/api/test_admissions_rules.py`; validate `backend/app/data/admissions_sources.json`; audit the existing eligibility engine and catalog before integration; then research the ten institutions' current official prospectuses and encode specific program/campus/cycle rules only where evidence supports them. Resolve any test failures before marking Phase 3 complete.
+
 ## Known blockers and risks
 
 - Email verification, password recovery, MFA, and account administration are not implemented.
@@ -34,7 +48,7 @@
 - The Streamlit application is not integrated with the new API authentication boundary.
 - Redis and PostgreSQL were not tested as live production services. Rate limiting is currently IP-based; deployments must configure trusted proxies correctly and review broader abuse prevention.
 - Private document storage, retention/deletion, and account-data deletion remain incomplete.
-- Current official-source admission research for 10+ universities has not been completed. Do not represent the existing data as fully verified for the 2026–27 cycle.
+- Current official-source admission research for 10+ universities has not been completed. Phase 3's source registry includes ten institutions, but only initial general-page checks have been made for a subset; do not represent this as ten universities fully researched or their program rules verified for the 2026–27 cycle.
 - The linked `filxxa/EduPath-AI` is read-only for this connected account. Changes are staged on a separate branch in the writable synchronized copy `datastorylabs/EduPath-AI-University_Assistant`; no `main` branch or original repository has been changed.
 
 ## Next task — Phase 3: University research and deterministic eligibility
