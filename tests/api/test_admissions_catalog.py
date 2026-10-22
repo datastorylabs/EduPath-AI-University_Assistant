@@ -129,3 +129,10 @@ def test_compare_endpoint_labels_uncovered_university_as_unknown_not_unsuitable(
     assert [rule["university_id"] for rule in payload["rules"]] == ["nust", "nust", "nust"]
     assert payload["university_ids_without_verified_rule"] == ["fast-nuces"]
     assert "unknown" in payload["notice"].lower()
+
+def test_current_registry_tracks_expired_punjab_phase_and_verified_nust_merit_source(client):
+    sources = client.get("/admissions/sources").json()["sources"]
+    pu_phase = next(source for source in sources if source["source_id"] == "pu-vacant-seats-phase2-2026-2027")
+    nust_merit = next(source for source in sources if source["source_id"] == "nust-ug-merit-2026-2027")
+    assert pu_phase["verification_status"] == "stale"
+    assert nust_merit["verification_status"] == "verified"
