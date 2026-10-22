@@ -73,11 +73,19 @@ def _build_program_text(program: dict[str, Any], university: dict[str, Any]) -> 
         else "Estimated fee: (not specified).",
     )
     out += _section("Notes", reqs.get("notes", "") or "")
-    out += _section(
-        "Sources",
-        "Verified by EduPath against official university publications. "
-        "See the university-level overview file for source URLs and last-verified dates.",
+    source_lines = [
+        f"- {source.get('title', 'Official university source')}: {source.get('url', '(URL not recorded)')} "
+        f"(last checked {source.get('last_verified', '(date not recorded)')}; "
+        f"status {source.get('verification_status', 'not recorded')})"
+        for source in (university.get("sources", []) or [])
+    ]
+    source_notice = (
+        "Source records are attached at university level unless their scope says otherwise. "
+        "They do not independently prove every generated program detail, campus offering, intake, "
+        "deadline, or criterion. Treat missing/uncertain values as unknown and confirm them on the "
+        "official source for the relevant program and cycle."
     )
+    out += _section("Sources and verification limits", "\\n".join(source_lines + [source_notice]))
     return out.strip() + "\n"
 
 
