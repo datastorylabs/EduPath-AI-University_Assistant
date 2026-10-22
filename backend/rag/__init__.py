@@ -196,7 +196,12 @@ def _rule_based_fallback(
     except Exception:
         return "I could not read the local university catalog."
 
-    return answer_question(question, profile, eligibility, program)
+    program_context = dict(program)
+    program_context["university_name"] = uni.get("name", target_uni_id)
+    program_context["university_website"] = uni.get("website")
+    program_context["university_sources"] = uni.get("sources", []) or []
+    program_context["university_campuses"] = uni.get("campuses", []) or []
+    return answer_question(question, profile, eligibility, program_context)
 
 
 def _invoke_fallback(
