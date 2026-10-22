@@ -27,20 +27,17 @@
 - Added Alembic migration `0002_auth_sessions_and_audit` for sessions and security audit events.
 - Verification: `python -m pytest tests/api -q` — 24 passed. Temporary SQLite migration reached `0002_auth_sessions_and_audit (head)`; `alembic check` reported no new upgrade operations. Schema tables verified: `users`, `auth_sessions`, `security_audit_events`, and `alembic_version`.
 
-## Phase 3 — University research and deterministic eligibility: PARTIALLY IMPLEMENTED; verification pending
+## Phase 3 — University research, deterministic eligibility, and conversational intent: IN PROGRESS
 
-- Added `backend/app/data/admissions_sources.json`, a structured discovery registry covering ten Pakistani universities: FAST-NUCES, NUST, COMSATS, GIKI, LUMS, UET Lahore, MUET, NED, University of Karachi, and University of the Punjab.
-- Registry records distinguish `partially_verified` from `unverified`; inclusion in the registry does not certify program-level rules. Initial official-source checks identified the FAST-NUCES undergraduate eligibility page, NUST undergraduate eligibility and merit pages, and MUET admission policy. The other institutions remain source-discovery entries requiring further review.
-- Added `backend/app/services/admissions_rules.py`, a deterministic fail-closed evaluator that returns eligible, ineligible, or indeterminate; it checks explicitly configured marks, subjects, qualification, and admission cycle. It does not use an LLM and does not estimate admission probability.
-- Added `backend/app/services/admissions_sources.py` for metadata validation and stale-source detection.
-- Added `tests/api/test_admissions_rules.py` for exact thresholds, below-threshold marks, missing data/subjects, qualification mismatch, unverified rules, cycle mismatch, invalid percentages, and source staleness.
-- **Verification status:** These new Phase 3 files were written to the GitHub working branch, but the new tests have not yet been executed in a local runtime. Do not treat Phase 3 as complete until imports, JSON parsing/schema validation, test execution, and integration with the existing catalog have been verified.
-- Existing `data/universities.json` has not been overwritten. The new source registry is a separate additive artifact pending a reviewed migration into the existing catalog schema.
-
-## Next task — Phase 3 completion checkpoint
-
-Run the API tests including `tests/api/test_admissions_rules.py`; validate `backend/app/data/admissions_sources.json`; audit the existing eligibility engine and catalog before integration; then research the ten institutions' current official prospectuses and encode specific program/campus/cycle rules only where evidence supports them. Resolve any test failures before marking Phase 3 complete.
-
+- The official-source registry now contains 14 source records across 11 Pakistani universities: FAST-NUCES, NUST, COMSATS, GIKI, LUMS, UET Lahore, MUET, NED, University of Karachi, the University of the Punjab, and IBA Karachi. Source records distinguish verified, partially verified, unverified, stale, and conflicting evidence. Registry coverage is not a claim that every program or campus has been researched.
+- Added/expanded cycle-specific deterministic rules for 8 computing programs: FAST-NUCES BS AI, CS, Data Science, Cyber Security, and Software Engineering (2026); NUST BS AI, CS, and Data Science (2026–2027). These rules are tied to official eligibility pages and distinguish minimum eligibility from merit or admission probability.
+- The source registry records the official University of the Punjab 2026–27 vacant-seat phase as stale because its published application window (8–28 September 2026) has passed. NUST's published general NET merit weighting is recorded with a verified scope (75% NET, 10% SSC, 15% HSSC); this is not an admission-probability estimate.
+- Added backend/app/services/admissions_sources.py for source metadata validation and stale-source detection, plus backend/app/services/admissions_catalog.py to expose only rules whose source status, cycle, and freshness allow deterministic evaluation.
+- Expanded backend/app/services/admissions_rules.py to evaluate qualification routes, separate SSC/HSSC thresholds, subject alternatives, explicitly conditional pathways, subject-level minima, IBCC equivalence, and cycle conflicts. Missing/unsupported/expired rules remain indeterminate rather than being guessed.
+- Improved the conversational RAG prompt in backend/rag/prompter.py: the latest question is classified into a response contract, and alternative-university questions explicitly override an earlier action plan. The prompt directs the model to compare named options, use the academic profile, answer the concern first, and avoid generic 'register again' boilerplate. The rule-based fallback has a separate catalog-based alternative lookup; existing tests cover that path.
+- Added tests for conversation intent, follow-up context, alternative retrieval, and profile-slice privacy. Updated catalogue assertions for the expanded eight-rule dataset.
+- Verification: A prior CI run on the earlier eight-rule data commit exposed three stale assertions expecting two rules; these were updated to expect the expanded dataset and three NUST computing options for the 2026–27 comparison. A fresh workflow run is pending after the latest changes. Do not mark this phase complete until the latest workflow is green and the test suite has passed.
+- Research limitation: the source registry covers 11 institutions, but only FAST-NUCES and NUST currently have cycle-specific program rules enabled for deterministic evaluation. COMSATS, GIKI, LUMS, UET Lahore, MUET, NED, University of Karachi, Punjab University, and IBA still need additional program/campus/intake-specific rule extraction before their criteria can be safely evaluated automatically.
 ## Known blockers and risks
 
 - Email verification, password recovery, MFA, and account administration are not implemented.
