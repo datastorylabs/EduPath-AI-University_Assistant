@@ -11,23 +11,47 @@
       "cycle": "2026",
       "version": "2026.10.22.1",
       "verification_status": "verified",
-      "source_ids": ["fast-ug-eligibility-2026"],
+      "source_ids": [
+        "fast-ug-eligibility-2026"
+      ],
       "minimum_ssc_percent": 60,
       "minimum_hssc_percent": 50,
-      "accepted_qualifications": ["FSc", "FSc Pre-Engineering", "ICS", "A-Levels", "A Levels", "GCE A-Levels", "Equivalent", "FSc Pre-Medical"],
+      "accepted_qualifications": [
+        "FSc",
+        "FSc Pre-Engineering",
+        "ICS",
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent",
+        "FSc Pre-Medical"
+      ],
       "subject_alternatives": [
-        ["mathematics"]
+        [
+          "mathematics"
+        ]
       ],
       "conditional_subject_alternatives": [
         {
-          "qualifications": ["FSc Pre-Medical"],
-          "subjects": ["biology", "physics", "chemistry"],
+          "qualifications": [
+            "FSc Pre-Medical"
+          ],
+          "subjects": [
+            "biology",
+            "physics",
+            "chemistry"
+          ],
           "condition": "Pre-medical applicants are eligible for the FAST computing domain if they have passed additional Mathematics or are awaiting its result under the published FAST policy.",
           "required_follow_up": "Confirm additional Mathematics result status and the active intake instructions with FAST-NUCES."
         }
       ],
       "minimum_subject_percentages": {},
-      "require_ibcc_equivalence_for": ["A-Levels", "A Levels", "GCE A-Levels", "Equivalent"],
+      "require_ibcc_equivalence_for": [
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent"
+      ],
       "note": "This is minimum eligibility for the 2026 cycle, not a closing-merit cutoff or admission guarantee. The published page lists BS AI within the computing domain. Campus availability and the active admission window must be confirmed separately.",
       "valid_until": "2026-12-31"
     },
@@ -39,26 +63,393 @@
       "cycle": "2026-2027",
       "version": "2026-10-22.1",
       "verification_status": "verified",
-      "source_ids": ["nust-ug-eligibility-2026-2027"],
+      "source_ids": [
+        "nust-ug-eligibility-2026-2027"
+      ],
       "minimum_ssc_percent": 60,
       "minimum_hssc_percent": 60,
-      "accepted_qualifications": ["FSc", "FSc Pre-Engineering", "ICS", "FSc Pre-Medical", "A-Levels", "A Levels", "GCE A-Levels", "Equivalent", "HSSC"],
+      "accepted_qualifications": [
+        "FSc",
+        "FSc Pre-Engineering",
+        "ICS",
+        "FSc Pre-Medical",
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent",
+        "HSSC"
+      ],
       "subject_alternatives": [
-        ["mathematics"],
-        ["mathematics", "physics", "chemistry"],
-        ["mathematics", "physics", "computer science"]
+        [
+          "mathematics"
+        ],
+        [
+          "mathematics",
+          "physics",
+          "chemistry"
+        ],
+        [
+          "mathematics",
+          "physics",
+          "computer science"
+        ]
       ],
       "conditional_subject_alternatives": [
         {
-          "qualifications": ["FSc Pre-Medical"],
-          "subjects": ["biology", "physics", "chemistry"],
+          "qualifications": [
+            "FSc Pre-Medical"
+          ],
+          "subjects": [
+            "biology",
+            "physics",
+            "chemistry"
+          ],
           "condition": "Pre-medical applicants to NUST computing programmes who have not taken additional Mathematics must clear deficient Mathematics courses totalling 6 credit hours within one year.",
           "required_follow_up": "Confirm the current NUST remedial Mathematics requirements and deadlines."
         }
       ],
       "minimum_subject_percentages": {},
-      "require_ibcc_equivalence_for": ["A-Levels", "A Levels", "GCE A-Levels", "Equivalent"],
+      "require_ibcc_equivalence_for": [
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent"
+      ],
       "note": "The published NUST computing table includes HSSC with Mathematics as a mandatory subject and the listed Pre-Engineering/Computer Science pathways. Foreign qualifications require IBCC equivalence. Minimum eligibility does not guarantee selection on merit.",
+      "valid_until": "2027-12-31"
+    },
+    {
+      "university_id": "fast-nuces",
+      "program_id": "bachelor-of-science-computer-science",
+      "program_name": "BS Computer Science",
+      "program_family": "computing",
+      "cycle": "2026",
+      "version": "2026.10.22.1",
+      "verification_status": "verified",
+      "source_ids": [
+        "fast-ug-eligibility-2026"
+      ],
+      "minimum_ssc_percent": 60,
+      "minimum_hssc_percent": 50,
+      "accepted_qualifications": [
+        "FSc",
+        "FSc Pre-Engineering",
+        "ICS",
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent",
+        "FSc Pre-Medical"
+      ],
+      "subject_alternatives": [
+        [
+          "mathematics"
+        ]
+      ],
+      "conditional_subject_alternatives": [
+        {
+          "qualifications": [
+            "FSc Pre-Medical"
+          ],
+          "subjects": [
+            "biology",
+            "physics",
+            "chemistry"
+          ],
+          "condition": "Pre-medical applicants to FAST computing programmes must have passed additional Mathematics or be awaiting its result under the published policy.",
+          "required_follow_up": "Confirm additional Mathematics status and the active intake instructions with FAST-NUCES."
+        }
+      ],
+      "minimum_subject_percentages": {},
+      "require_ibcc_equivalence_for": [
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent"
+      ],
+      "note": "Minimum eligibility for the 2026 cycle, not a closing-merit cutoff or admission guarantee. Campus availability and active application dates must be confirmed separately.",
+      "valid_until": "2026-12-31"
+    },
+    {
+      "university_id": "fast-nuces",
+      "program_id": "bachelor-of-science-data-science",
+      "program_name": "BS Data Science",
+      "program_family": "computing",
+      "cycle": "2026",
+      "version": "2026.10.22.1",
+      "verification_status": "verified",
+      "source_ids": [
+        "fast-ug-eligibility-2026"
+      ],
+      "minimum_ssc_percent": 60,
+      "minimum_hssc_percent": 50,
+      "accepted_qualifications": [
+        "FSc",
+        "FSc Pre-Engineering",
+        "ICS",
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent",
+        "FSc Pre-Medical"
+      ],
+      "subject_alternatives": [
+        [
+          "mathematics"
+        ]
+      ],
+      "conditional_subject_alternatives": [
+        {
+          "qualifications": [
+            "FSc Pre-Medical"
+          ],
+          "subjects": [
+            "biology",
+            "physics",
+            "chemistry"
+          ],
+          "condition": "Pre-medical applicants to FAST computing programmes must have passed additional Mathematics or be awaiting its result under the published policy.",
+          "required_follow_up": "Confirm additional Mathematics status and the active intake instructions with FAST-NUCES."
+        }
+      ],
+      "minimum_subject_percentages": {},
+      "require_ibcc_equivalence_for": [
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent"
+      ],
+      "note": "Minimum eligibility for the 2026 cycle, not a closing-merit cutoff or admission guarantee. Campus availability and active application dates must be confirmed separately.",
+      "valid_until": "2026-12-31"
+    },
+    {
+      "university_id": "fast-nuces",
+      "program_id": "bachelor-of-science-cyber-security",
+      "program_name": "BS Cyber Security",
+      "program_family": "computing",
+      "cycle": "2026",
+      "version": "2026.10.22.1",
+      "verification_status": "verified",
+      "source_ids": [
+        "fast-ug-eligibility-2026"
+      ],
+      "minimum_ssc_percent": 60,
+      "minimum_hssc_percent": 50,
+      "accepted_qualifications": [
+        "FSc",
+        "FSc Pre-Engineering",
+        "ICS",
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent",
+        "FSc Pre-Medical"
+      ],
+      "subject_alternatives": [
+        [
+          "mathematics"
+        ]
+      ],
+      "conditional_subject_alternatives": [
+        {
+          "qualifications": [
+            "FSc Pre-Medical"
+          ],
+          "subjects": [
+            "biology",
+            "physics",
+            "chemistry"
+          ],
+          "condition": "Pre-medical applicants to FAST computing programmes must have passed additional Mathematics or be awaiting its result under the published policy.",
+          "required_follow_up": "Confirm additional Mathematics status and the active intake instructions with FAST-NUCES."
+        }
+      ],
+      "minimum_subject_percentages": {},
+      "require_ibcc_equivalence_for": [
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent"
+      ],
+      "note": "Minimum eligibility for the 2026 cycle, not a closing-merit cutoff or admission guarantee. Campus availability and active application dates must be confirmed separately.",
+      "valid_until": "2026-12-31"
+    },
+    {
+      "university_id": "fast-nuces",
+      "program_id": "bachelor-of-science-software-engineering",
+      "program_name": "BS Software Engineering",
+      "program_family": "computing",
+      "cycle": "2026",
+      "version": "2026.10.22.1",
+      "verification_status": "verified",
+      "source_ids": [
+        "fast-ug-eligibility-2026"
+      ],
+      "minimum_ssc_percent": 60,
+      "minimum_hssc_percent": 50,
+      "accepted_qualifications": [
+        "FSc",
+        "FSc Pre-Engineering",
+        "ICS",
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent",
+        "FSc Pre-Medical"
+      ],
+      "subject_alternatives": [
+        [
+          "mathematics"
+        ]
+      ],
+      "conditional_subject_alternatives": [
+        {
+          "qualifications": [
+            "FSc Pre-Medical"
+          ],
+          "subjects": [
+            "biology",
+            "physics",
+            "chemistry"
+          ],
+          "condition": "Pre-medical applicants to FAST computing programmes must have passed additional Mathematics or be awaiting its result under the published policy.",
+          "required_follow_up": "Confirm additional Mathematics status and the active intake instructions with FAST-NUCES."
+        }
+      ],
+      "minimum_subject_percentages": {},
+      "require_ibcc_equivalence_for": [
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent"
+      ],
+      "note": "Minimum eligibility for the 2026 cycle, not a closing-merit cutoff or admission guarantee. Campus availability and active application dates must be confirmed separately.",
+      "valid_until": "2026-12-31"
+    },
+    {
+      "university_id": "nust",
+      "program_id": "bs-computer-science",
+      "program_name": "BS Computer Science",
+      "program_family": "computing",
+      "cycle": "2026-2027",
+      "version": "2026-10-22.1",
+      "verification_status": "verified",
+      "source_ids": [
+        "nust-ug-eligibility-2026-2027"
+      ],
+      "minimum_ssc_percent": 60,
+      "minimum_hssc_percent": 60,
+      "accepted_qualifications": [
+        "FSc",
+        "FSc Pre-Engineering",
+        "ICS",
+        "FSc Pre-Medical",
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent",
+        "HSSC"
+      ],
+      "subject_alternatives": [
+        [
+          "mathematics"
+        ],
+        [
+          "mathematics",
+          "physics",
+          "chemistry"
+        ],
+        [
+          "mathematics",
+          "physics",
+          "computer science"
+        ]
+      ],
+      "conditional_subject_alternatives": [
+        {
+          "qualifications": [
+            "FSc Pre-Medical"
+          ],
+          "subjects": [
+            "biology",
+            "physics",
+            "chemistry"
+          ],
+          "condition": "Pre-medical applicants to NUST computing programmes without additional Mathematics must clear deficient Mathematics courses totalling 6 credit hours within one year.",
+          "required_follow_up": "Confirm the current NUST remedial Mathematics requirements and deadlines."
+        }
+      ],
+      "minimum_subject_percentages": {},
+      "require_ibcc_equivalence_for": [
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent"
+      ],
+      "note": "Minimum eligibility only; not a merit cutoff or admission guarantee. NUST requires IBCC equivalence for foreign qualifications.",
+      "valid_until": "2027-12-31"
+    },
+    {
+      "university_id": "nust",
+      "program_id": "bs-data-science",
+      "program_name": "BS Data Science",
+      "program_family": "computing",
+      "cycle": "2026-2027",
+      "version": "2026-10-22.1",
+      "verification_status": "verified",
+      "source_ids": [
+        "nust-ug-eligibility-2026-2027"
+      ],
+      "minimum_ssc_percent": 60,
+      "minimum_hssc_percent": 60,
+      "accepted_qualifications": [
+        "FSc",
+        "FSc Pre-Engineering",
+        "ICS",
+        "FSc Pre-Medical",
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent",
+        "HSSC"
+      ],
+      "subject_alternatives": [
+        [
+          "mathematics"
+        ],
+        [
+          "mathematics",
+          "physics",
+          "chemistry"
+        ],
+        [
+          "mathematics",
+          "physics",
+          "computer science"
+        ]
+      ],
+      "conditional_subject_alternatives": [
+        {
+          "qualifications": [
+            "FSc Pre-Medical"
+          ],
+          "subjects": [
+            "biology",
+            "physics",
+            "chemistry"
+          ],
+          "condition": "Pre-medical applicants to NUST computing programmes without additional Mathematics must clear deficient Mathematics courses totalling 6 credit hours within one year.",
+          "required_follow_up": "Confirm the current NUST remedial Mathematics requirements and deadlines."
+        }
+      ],
+      "minimum_subject_percentages": {},
+      "require_ibcc_equivalence_for": [
+        "A-Levels",
+        "A Levels",
+        "GCE A-Levels",
+        "Equivalent"
+      ],
+      "note": "Minimum eligibility only; not a merit cutoff or admission guarantee. NUST requires IBCC equivalence for foreign qualifications.",
       "valid_until": "2027-12-31"
     }
   ]
