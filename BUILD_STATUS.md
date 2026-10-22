@@ -37,7 +37,7 @@
 - Verification checkpoint: GitHub Actions run #16 at commit cd936d60122069e8fd884b1340d2bbc8eaf8e511 passed 53 tests with 2 deprecation warnings. Several smaller commits since then, including Phase 4, still require a fresh run.
 - Research limitation: only FAST-NUCES and NUST currently have cycle-specific program rules enabled for deterministic evaluation. Other universities in the source registry still need program/campus/intake-specific rule extraction before their criteria can be safely evaluated automatically.
 
-## Phase 4 — Persistent user-data storage: IMPLEMENTED; CI VERIFIED AT CODE CHECKPOINT
+## Phase 4 — Persistent user-data storage: IMPLEMENTED; CI VERIFIED
 
 - Added student_profiles, allowing each account to store one validated academic profile with qualification, SSC/HSSC marks, subjects, per-subject marks, and equivalency status.
 - Added conversations and conversation_messages to persist conversation titles and user messages, with a service helper that can also persist internally generated assistant messages and citations when advisor integration is added.
@@ -46,6 +46,15 @@
 - Added Alembic migration 0003_profiles_and_conversations, validation schemas, tests for persistence, user isolation, validation, and deletion, and SQLite foreign-key enforcement.
 - Verified by GitHub Actions run #51 (push) and run #52 (pull request) against code commit `6be03578fc7cbf7d1918fd294c4d5eeb9bc5e562`: fresh SQLite migration reached `0003_profiles_and_conversations (head)`, `alembic check` reported `No new upgrade operations detected`, and the API/source/conversation test job passed `59 tests, 2 warnings`. This verifies the branch checkpoint's lightweight test/migration pipeline; it is not a production deployment or live PostgreSQL/Redis test.
 - Scope limits: student profiles are not yet consumed by the eligibility endpoint or RAG advisor; assistant replies are not yet automatically generated or stored from the current UI; no document/file storage or OCR persistence is included; full account deletion and retention automation remain outstanding.
+
+## Phase 5 — Safe React frontend and guided adviser integration: IMPLEMENTED IN BRANCH; CI VERIFICATION PENDING
+
+- Added a React/Vite workspace with a responsive dashboard, authentication, academic-profile editor, programme explorer/eligibility checker, guided advisor sessions, and conversation history.
+- Connected the UI to the API through a same-origin /api development proxy. The React app uses the backend's HttpOnly session cookie and CSRF flow; the CSRF token remains in memory and is re-bootstrapped from the API.
+- No profile, password, session token, or conversation history is written to localStorage/sessionStorage. User/API content is rendered as React text, not injected HTML; citations require HTTP(S) URLs and open in a protected new tab.
+- Added a deterministic, owner-scoped profile-to-programme check endpoint that loads the saved profile, evaluates only currently source-verified computing rules, and persists both the user request and cited result atomically. This is not open-ended LLM chat and makes no admission-probability claims.
+- Added frontend setup and deployment guidance and a Node-based production build job in GitHub Actions. Latest frontend CI result was not yet available at this status update; verify both the JS build and Python tests before calling Phase 5 complete.
+- Limitations: original Streamlit UI remains separate; frontend has no document-upload UI/private document storage; full account deletion and retention workflow are still outstanding. Prefer same-site production hosting/reverse proxy because auth cookies currently use SameSite=Lax.
 
 ## Known blockers and risks
 
