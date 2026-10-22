@@ -1,7 +1,7 @@
 """Private academic-profile and conversation-history persistence endpoints."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from uuid import UUID
 
@@ -352,12 +352,15 @@ def run_profile_program_check(
         ensure_ascii=False,
         separators=(",", ":"),
     )
-    conversation.updated_at = datetime.now(timezone.utc)
     user_message = append_message(db, conversation, "user", user_text)
+    # Explicit, ordered timestamps avoid ties on databases with low timestamp precision.
+    user_message.created_at = datetime.now(timezone.utc)
     assistant_message = append_message(
         db, conversation, "assistant", assistant_content,
         citations=list(citation_map.values()),
     )
+    assistant_message.created_at = user_message.created_at + timedelta(microseconds=1)
+    conversation.updated_at = assistant_message.created_at
     record_security_event(
         db, request, settings,
         "conversation.program_check_completed",
