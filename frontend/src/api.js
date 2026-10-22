@@ -39,6 +39,19 @@ export class ApiError extends Error {
   }
 }
 
+let csrfBootstrapPromise = null;
+
+// StrictMode can mount the bootstrap effect twice in development. Share a
+// single CSRF request so concurrent responses cannot overwrite each other's cookie.
+export function bootstrapCsrf() {
+  if (!csrfBootstrapPromise) {
+    csrfBootstrapPromise = apiRequest("/auth/csrf").finally(() => {
+      csrfBootstrapPromise = null;
+    });
+  }
+  return csrfBootstrapPromise;
+}
+
 function safeErrorMessage(payload, status) {
   if (payload && typeof payload.detail === "string" && payload.detail.length < 260) {
     return payload.detail;
