@@ -82,54 +82,132 @@ def explain_eligibility(result: dict[str, Any], program: dict[str, Any]) -> str:
 
 
 def answer_question(question: str, profile: dict[str, Any], result: dict[str, Any], program: dict[str, Any]) -> str:
-    """Answer a student question using only grounded data."""
-    q = question.lower()
+    """Answer the student's specific question from catalog and rule-check results."""
+    q = " ".join(question.casefold().split())
+    requirements = program.get("requirements", {}) or {}
+    sources = program.get("university_sources", []) or []
+    official_url = next(
+        (
+            source.get("url") for source in sources
+            if source.get("url") and any(token in source["url"].casefold() for token in ("admission", "eligibility", "program", "policy"))
+        ),
+        program.get("university_website"),
+    )
 
-    # Deadline questions
-    if any(word in q for word in ["deadline", "last date", "when", "due date"]):
-        deadline = result.get("application_deadline")
+    def source_suffix() -> str:
+        return f"\n\nOfficial source to confirm current-cycle details: {official_url}" if official_url else ""
+
+    # Narrow deadline language; a generic "when" question is not necessarily
+    # about application deadlines (it may ask about a test or merit list).
+    deadline_phrases = (
+        "deadline", "last date", "closing date", "due date", "application window",
+        "when can i apply", "when does application", "when is the application",
+        "when will applications", "when do applications", "application closes",
+    )
+    if any(phrase in q for phrase in deadline_phrases):
+        deadline = result.get("application_deadline") or requirements.get("application_deadline")
         days = result.get("days_remaining")
         if deadline:
-            if days is not None:
-                return f"The application deadline for **{program['name']}** is **{deadline}** ({days} days from today)."
-            return f"The application deadline for **{program['name']}** is **{deadline}**."
-        return "I don't have a deadline on file for this program. Please check the official university website."
-
-    # Missing documents
-    if any(word in q for word in ["missing", "documents", "requirement", "need"]):
-        missing = result.get("missing_documents", [])
-        if missing:
-            doc_names = ", ".join(d["name"] for d in missing)
-            return f"You still need: {doc_names}. Upload or verify them in the Profile section."
-        return "All required documents appear to be present based on your profile."
-
-    # Eligibility / chances
-    if any(word in q for word in ["eligible", "chance", "accept", "admission", "verdict"]):
-        return explain_eligibility(result, program)
-
-    # Test registration
-    if any(word in q for word in ["test", "register", "nts", "nat", "net", "ecat", "lcat", "sat"]):
-        test = result.get("admission_test", "the required admission test")
-        advice = COMMON_ADVICE.get(test.lower(), "Visit the official university admissions portal for registration details.")
-        return f"For **{test}**: {advice}"
-
-    # Aggregate / cutoff
-    if any(word in q for word in ["aggregate", "percentage", "cutoff", "marks", "score"]):
-        agg = profile.get("aggregate")
-        cutoff = result.get("estimated_cutoff")
-        minimum = result.get("minimum_aggregate")
-        agg_str = f"{agg}%" if agg is not None else "N/A"
-        cutoff_str = f"{cutoff}%" if cutoff is not None else "N/A"
-        minimum_str = f"{minimum}%" if minimum is not None else "N/A"
+            suffix = f" ({days} days remaining)" if days is not None else ""
+            return f"The stored application deadline for **{program['name']}** is **{deadline}**{suffix}.{source_suffix()}"
         return (
-            f"Your profile aggregate is **{agg_str}**. "
-            f"The minimum required aggregate is **{minimum_str}**, and the estimated cutoff is **{cutoff_str}**."
+            f"EduPath does not have a verified application deadline recorded for **{program['name']}**. "
+            "I don't want to give you a guessed date." + source_suffix()
         )
 
-    # Fallback grounded response
+    # Test-related intent must be handled before broad eligibility language.
+    test_terms = ("admission test", "entry test", "test", "register", "nts", "nat", "net", "ecat", "lcat", "sat")
+    if any(term in q for term in test_terms):
+        test = result.get("admission_test") or requirements.get("admission_test")
+        if not test:
+            return f"The required test route is not recorded for **{program['name']}**." + source_suffix()
+        test_lower = str(test).casefold()
+        advice = next(
+            (value for key, value in COMMON_ADVICE.items() if key in test_lower or test_lower in key),
+            None,
+        )
+        if any(phrase in q for phrase in ("register", "registration", "how do i sign up", "where do i apply")):
+            advice = advice or "Use the official university admissions portal to confirm the current test registration process and dates."
+            return f"For **{test}**, the catalog lists this route. {advice}{source_suffix()}"
+        return f"For **{program['name']}**, the stored admission-test route is **{test}**. Check the official portal for current-cycle test options and dates." + source_suffix()
+
+    # Distinguish documents asked for from documents actually missing.
+    if any(term in q for term in ("missing document", "what documents", "which documents", "required documents", "document list", "cnic", "b-form", "transcript", "certificate")):
+        required_docs = [
+            item.get("name", "Unnamed document")
+            for item in requirements.get("required_documents", []) or []
+            if item.get("required", True)
+        ]
+        missing_docs = [
+            item.get("name", "Unnamed document")
+            for item in result.get("missing_documents", []) or []
+        ]
+        if "missing" in q:
+            if missing_docs:
+                return "Based on your current profile, these required documents are still missing: " + ", ".join(missing_docs) + "."
+            return "No missing required documents are flagged by the current profile check. Confirm your uploaded copies are legible and complete."
+        if required_docs:
+            return "The catalog lists these required documents for **" + program["name"] + "**: " + ", ".join(required_docs) + "." + source_suffix()
+        return f"The required document list isn't recorded for **{program['name']}** in the local catalog." + source_suffix()
+
+    # Fees are a separate question; do not turn them into an eligibility/action plan.
+    if any(term in q for term in ("fee", "tuition", "cost", "scholarship", "financial aid", "financial assistance")):
+        fee = requirements.get("fee_estimate_pkr")
+        if fee is not None:
+            return f"The local catalog lists an estimated fee of PKR {fee:,} for **{program['name']}**. Treat it as an estimate and confirm the latest fee schedule." + source_suffix()
+        return f"EduPath doesn't have a verified current fee figure recorded for **{program['name']}**. I won't guess the amount." + source_suffix()
+
+    # Ask about eligibility specifically; "admission" alone must not trigger this.
+    eligibility_terms = (
+        "eligible", "eligibility", "am i qualified", "qualify for", "qualify",
+        "admission chances", "chance of admission", "my chances", "verdict",
+        "do i meet the criteria", "meet the requirement",
+    )
+    if any(term in q for term in eligibility_terms):
+        return explain_eligibility(result, program)
+
+    # Aggregate / merit questions should report the recorded values and avoid
+    # implying a minimum threshold equals a likely admission.
+    if any(term in q for term in ("aggregate", "percentage", "cutoff", "cut-off", "merit", "marks", "score", "weightage", "weighting")):
+        aggregate = profile.get("aggregate")
+        cutoff = result.get("estimated_cutoff") or requirements.get("estimated_cutoff")
+        minimum = result.get("minimum_aggregate")
+        if minimum is None:
+            minimum = requirements.get("minimum_aggregate")
+        agg_str = f"{aggregate}%" if aggregate is not None else "not recorded"
+        cutoff_str = f"{cutoff}%" if cutoff is not None else "not available in EduPath"
+        minimum_str = f"{minimum}%" if minimum is not None else "not available in EduPath"
+        formula = requirements.get("aggregate_formula")
+        reply = (
+            f"Your recorded aggregate is **{agg_str}**. The catalog lists a minimum of **{minimum_str}** "
+            f"and a closing-merit estimate of **{cutoff_str}** for **{program['name']}**. "
+            "Meeting minimum eligibility is not a guarantee of selection."
+        )
+        if formula:
+            reply += f" The stored merit formula is: {formula}."
+        return reply + source_suffix()
+
+    # Give catalog details for common programme/campus questions rather than
+    # repeating an action-plan slogan.
+    if any(term in q for term in ("duration", "how long", "years", "degree length")):
+        duration = program.get("duration")
+        if duration:
+            return f"**{program['name']}** is listed as a {duration} programme." + source_suffix()
+        return "The programme duration is not recorded in EduPath's local catalog." + source_suffix()
+
+    if any(term in q for term in ("campus", "campuses", "location", "where is", "which city")):
+        campuses = program.get("campuses") or program.get("university_campuses") or []
+        if campuses:
+            return f"The university lists these campuses: " + ", ".join(campuses) + ". Program availability may differ by campus." + source_suffix()
+        return f"The local program record doesn't map **{program['name']}** to specific campuses. Confirm availability on the official programme list." + source_suffix()
+
+    # Honest fallback: keep the user's topic in view and identify the exact data
+    # gap instead of steering everyone back to eligibility or registration.
+    topic = question.strip().rstrip("?.!") or "that question"
     return (
-        "I'm here to help with your admission to **" + program.get("name", "this program") + "**. "
-        "Ask me about eligibility, deadlines, required documents, or admission tests, and I'll answer based on your verified profile."
+        f"I can't answer **{topic}** confidently from the information currently stored for **{program.get('name', 'this program')}**. "
+        "That doesn't mean the answer is no—the detail may simply be missing from EduPath's local catalog."
+        + source_suffix()
     )
 
 
