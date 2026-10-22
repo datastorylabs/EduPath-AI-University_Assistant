@@ -97,11 +97,25 @@ def answer_alternative_universities(
     except (TypeError, ValueError):
         aggregate_value = None
 
+    from backend.rag.retriever import detect_intent
+
+    intent = detect_intent(question)
+    named_ids = list(intent.get("university_ids") or [])
+    compare_named = len(named_ids) >= 2
     selected_uid = selected_uni.get("id") if selected_uni else selected_university_id
+    excluded_ids = set()
+    if not compare_named:
+        if selected_uid:
+            excluded_ids.add(selected_uid)
+        if named_ids and re.search(r"\\b(?:other\\s+than|apart\\s+from|besides|instead\\s+of)\\b", question.casefold()):
+            excluded_ids.update(named_ids)
+
     candidates: list[dict[str, Any]] = []
     for university in universities:
         uid = university.get("id")
-        if not uid or uid == selected_uid:
+        if not uid or uid in excluded_ids:
+            continue
+        if compare_named and uid not in named_ids:
             continue
         for program in university.get("programs", []) or []:
             relevance = _term_score(selected_program, program)
@@ -163,9 +177,18 @@ def answer_alternative_universities(
 
     target_uni_name = selected_uni.get("name") if selected_uni else profile.get("target_university", "your selected university")
     target_prog_name = selected_program.get("name", "your selected program")
-    lines = [
-        f"You're right to explore alternatives. You're currently looking at **{target_prog_name}** at **{target_uni_name}**; here are other universities in EduPath's catalog with related programs."
-    ]
+    if compare_named:
+        named_names = [
+            uni.get("name", uni.get("id", "University"))
+            for uni in universities if uni.get("id") in named_ids
+        ]
+        lines = [
+            f"Here's a comparison of **{', '.join(named_names)}** for programs related to **{target_prog_name}**, using the academic baselines recorded in EduPath's catalog."
+        ]
+    else:
+        lines = [
+            f"You're right to explore alternatives. You're currently looking at **{target_prog_name}** at **{target_uni_name}**; here are other universities in EduPath's catalog with related programs."
+        ]
     if not useful:
         lines.append(
             "I couldn't identify a reliable alternative match from the stored criteria and your current profile. "
