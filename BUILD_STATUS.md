@@ -37,14 +37,14 @@
 - Verification checkpoint: GitHub Actions run #16 at commit cd936d60122069e8fd884b1340d2bbc8eaf8e511 passed 53 tests with 2 deprecation warnings. Several smaller commits since then, including Phase 4, still require a fresh run.
 - Research limitation: only FAST-NUCES and NUST currently have cycle-specific program rules enabled for deterministic evaluation. Other universities in the source registry still need program/campus/intake-specific rule extraction before their criteria can be safely evaluated automatically.
 
-## Phase 4 — Persistent user-data storage: IMPLEMENTED IN BRANCH; VERIFICATION PENDING
+## Phase 4 — Persistent user-data storage: IMPLEMENTED; CI VERIFIED AT CODE CHECKPOINT
 
 - Added student_profiles, allowing each account to store one validated academic profile with qualification, SSC/HSSC marks, subjects, per-subject marks, and equivalency status.
 - Added conversations and conversation_messages to persist conversation titles and user messages, with a service helper that can also persist internally generated assistant messages and citations when advisor integration is added.
 - Added private endpoints: GET/PUT/DELETE /profile/me; POST /conversations; GET /conversations; GET /conversations/{id}; POST /conversations/{id}/messages; and DELETE /conversations/{id}.
 - All profile and conversation lookups are scoped to the authenticated owner. State-changing endpoints require session-bound CSRF validation; personal-data responses set Cache-Control: no-store; audit entries exclude profile values and message content.
 - Added Alembic migration 0003_profiles_and_conversations, validation schemas, tests for persistence, user isolation, validation, and deletion, and SQLite foreign-key enforcement.
-- Not yet verified by a fresh CI run at the time of this update. Do not claim Phase 4 is complete until the migration, tests, and Alembic schema check pass.
+- Verified by GitHub Actions run #51 (push) and run #52 (pull request) against code commit `6be03578fc7cbf7d1918fd294c4d5eeb9bc5e562`: fresh SQLite migration reached `0003_profiles_and_conversations (head)`, `alembic check` reported `No new upgrade operations detected`, and the API/source/conversation test job passed `59 tests, 2 warnings`. This verifies the branch checkpoint's lightweight test/migration pipeline; it is not a production deployment or live PostgreSQL/Redis test.
 - Scope limits: student profiles are not yet consumed by the eligibility endpoint or RAG advisor; assistant replies are not yet automatically generated or stored from the current UI; no document/file storage or OCR persistence is included; full account deletion and retention automation remain outstanding.
 
 ## Known blockers and risks
