@@ -208,3 +208,156 @@ def answer_alternative_universities(
         "I have not changed your selected program. Tell me your preferred city or budget if you want the shortlist narrowed."
     )
     return "\n".join(lines)
+
+
+
+def answer_named_university(
+    question: str,
+    profile: dict[str, Any] | None,
+    selected_university_id: str | None,
+    selected_program_id: str | None,
+    target_university_id: str,
+) -> str:
+    """Answer a named-university follow-up without reusing another school's verdict."""
+    from backend.data_loader import get_program, get_university, load_universities
+
+    profile = profile or {}
+    data = load_universities()
+    universities = data.get("universities", []) or []
+    target_university = get_university(data, target_university_id)
+
+    selected_university = (
+        get_university(data, selected_university_id) if selected_university_id else None
+    )
+    selected_program = (
+        get_program(selected_university, selected_program_id)
+        if selected_university and selected_program_id else None
+    )
+    target_program_name = str(
+        profile.get("target_program") or (selected_program or {}).get("name") or ""
+    )
+
+    # The primary catalogue contains program details for only a subset of
+    # institutions. For universities outside it, use the separate source registry
+    # to give the user an official starting point without manufacturing criteria.
+    if target_university is None:
+        registry_id_aliases = {
+            "uet": "uet-lahore",
+            "uok": "university-of-karachi",
+            "pu": "punjab-university",
+            "iba": "iba-karachi",
+        }
+        registry_id = registry_id_aliases.get(target_university_id, target_university_id)
+        try:
+            from backend.app.services.admissions_catalog import load_sources_registry
+            source_records = [
+                item for item in load_sources_registry()["sources"]
+                if item["university_id"] == registry_id
+            ]
+        except Exception:
+            source_records = []
+
+        if not source_records:
+            return (
+                f"I recognized the university you asked about, but it has no source record available "
+                f"in this EduPath build yet. Your previously selected university's eligibility result "
+                f"does not apply to {target_university_id}. I won't invent its criteria."
+            )
+
+        # Prefer a current/official policy page over an institutional homepage.
+        source_records.sort(key=lambda item: (
+            item.get("verification_status") == "unverified",
+            item.get("source_type") in {"official_admissions_page", "official_admissions_portal"},
+        ))
+        lines = [
+            f"You're asking about **{source_records[0].get('title', target_university_id)}**, rather than just the next step for your current choice."
+        ]
+        status = source_records[0].get("verification_status", "unverified")
+        lines.append(
+            f"EduPath has an official source lead for this university, but the source record is **{status.replace('_', ' ')}**. "
+            "It does not currently provide a source-verified, program-specific rule in the local eligibility engine."
+        )
+        for source in source_records[:3]:
+            lines.append(f"- [{source.get('title', 'Official source')}]({source['url']}) — {source.get('scope', 'scope not recorded')}")
+        lines.append(
+            "That means I can point you to the official criteria, but I cannot safely reuse your current university's verdict or declare you eligible here. "
+            "Tell me the exact degree and intake if you want a program-specific comparison."
+        )
+        return "\n".join(lines)
+
+    programs = target_university.get("programs", []) or []
+    query = (question or "").casefold()
+    exact = [
+        program for program in programs
+        if len(str(program.get("name", ""))) > 4
+        and str(program.get("name", "")).casefold() in query
+    ]
+
+    if exact:
+        candidates = exact
+    else:
+        target_category = str((selected_program or {}).get("category", "")).casefold()
+        target_name = target_program_name.casefold()
+        keywords = {
+            "computing": {"artificial intelligence", "computer science", "data science", "software engineering", "cyber security", "computer engineering", "information technology"},
+            "engineering": {"engineering", "electrical", "mechanical", "civil", "chemical", "mechatronics", "telecommunication"},
+            "business": {"business administration", "business analytics", "accounting", "finance", "economics"},
+        }
+        if target_category in {"computing", "computer science", "information technology"} or any(
+            word in target_name for word in ("artificial intelligence", "computer science", "data science", "software", "cyber")
+        ):
+            family = keywords["computing"]
+        elif target_category == "engineering" or "engineering" in target_name:
+            family = keywords["engineering"]
+        elif target_category == "business" or "business" in target_name:
+            family = keywords["business"]
+        else:
+            family = set(re.findall(r"[a-z]+", target_name))
+
+        candidates = [
+            program for program in programs
+            if str(program.get("category", "")).casefold() == target_category
+            or any(term in str(program.get("name", "")).casefold() for term in family)
+        ]
+        candidates.sort(
+            key=lambda program: (-_term_score(selected_program or {"name": target_program_name}, program),
+                                 str(program.get("name", "")))
+        )
+
+    candidates = candidates[:4]
+    if not candidates:
+        return (
+            f"**{target_university.get('name', target_university_id)}** is in EduPath's program catalog, "
+            "but I couldn't identify a related program from the catalog. This does not mean the university "
+            "has no suitable option; the catalog's program list may be incomplete."
+        )
+
+    source_urls = [
+        source.get("url") for source in target_university.get("sources", []) or []
+        if source.get("url")
+    ]
+    source_line = source_urls[0] if source_urls else target_university.get("website")
+    lines = [
+        f"Here are related options at **{target_university['name']}** based on EduPath's local catalog. "
+        "This is a separate university lookup—not an extension of your selected program's eligibility verdict."
+    ]
+    for program in candidates:
+        req = program.get("requirements", {}) or {}
+        lines.append(f"**{program.get('name', 'Program')}**")
+        if req.get("qualification"):
+            lines.append("- Listed qualifications: " + ", ".join(str(item) for item in req["qualification"]) + ".")
+        if req.get("minimum_aggregate") is not None:
+            lines.append(f"- Catalog-listed minimum: {req['minimum_aggregate']}%. Confirm whether this means HSSC marks or a programme-specific aggregate.")
+        if req.get("admission_test"):
+            lines.append(f"- Admission test listed: {req['admission_test']}.")
+        if req.get("application_deadline"):
+            lines.append(f"- Catalog deadline: {req['application_deadline']}; confirm it against the active intake.")
+        if req.get("estimated_cutoff") is None:
+            lines.append("- Closing merit is not recorded; I won't estimate your admission chance.")
+    if source_line:
+        lines.append(f"**Official university source:** {source_line}")
+    lines.append(
+        f"The catalog says its university-level information was last checked on {target_university.get('last_verified', 'an unrecorded date')}. "
+        "Verify program-specific requirements, campus availability, and the active admission cycle on the official source before acting."
+    )
+    return "\n".join(lines)
