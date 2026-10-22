@@ -42,9 +42,9 @@
       "source_type": "official_policy",
       "admission_cycle": "2026-2027",
       "last_verified": "2026-10-22",
-      "verification_status": "partially_verified",
-      "scope": "General NET-based weighting only; confirm program and route exceptions on the current admissions portal.",
-      "notes": "The official page lists general NET merit weights of 75% NET, 10% SSC, and 15% HSSC. Weights are not an estimate of admission probability."
+      "verification_status": "verified",
+      "scope": "General NET-based undergraduate merit weights only: NET 75%, SSC/equivalent 10%, HSSC/equivalent 15%. This exact scope does not establish every program/route exception or admission probability.",
+      "notes": "The official page explicitly lists 75% NET, 10% SSC/O-Level/equivalent, and 15% HSSC/A-Level/equivalent for general NET-based merit; program-wise test paper and route exceptions are listed separately. The weights are not an estimate of admission probability."
     },
     {
       "source_id": "comsats-admissions",
@@ -164,6 +164,18 @@
       "verification_status": "partially_verified",
       "scope": "Displayed academic entry requirements for BBA and BS programmes on the current official page; page does not identify a cycle in the extracted requirements.",
       "notes": "The page displays HSSC minimum 65% for BBA and HSSC 60% in Pre-Engineering/General Science (Computer Science) for BS Computer Science. A dated intake notice must confirm application dates and any changes."
+    },
+    {
+      "source_id": "pu-vacant-seats-phase2-2026-2027",
+      "university_id": "punjab-university",
+      "title": "University of the Punjab Undergraduate Admissions — Phase 2 Vacant Seats",
+      "url": "https://pu.edu.pk/home/admission_notice/719",
+      "source_type": "official_admissions_notice",
+      "admission_cycle": "2026-2027",
+      "last_verified": "2026-10-22",
+      "verification_status": "stale",
+      "scope": "Phase 2 vacant-seat application window only; this is a dated notice, not a general program eligibility rule.",
+      "notes": "The official notice lists applications from 08-Sep-2026 to 28-Sep-2026. That window has passed as of 22-Oct-2026; do not describe this phase as open or infer future dates from it."
     }
   ]
 }
