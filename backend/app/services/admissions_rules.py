@@ -206,7 +206,7 @@ def evaluate_eligibility(
     conditional_path_match = False
     matched_conditional_note = ""
 
-    if supplied is None and (rule.get("required_subjects") or rule.get("subject_alternatives") or rule.get("conditional_subject_alternatives")):
+    if not supplied and (rule.get("required_subjects") or rule.get("subject_alternatives") or rule.get("conditional_subject_alternatives")):
         missing = True
         checks.append(RequirementResult("subjects", "unknown", "HSSC subject list is needed to evaluate subject pathways."))
     else:
