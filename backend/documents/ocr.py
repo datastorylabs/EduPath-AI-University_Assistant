@@ -466,7 +466,7 @@ def ocr_image(image: Any) -> OcrResult:
     if timed_out and not best_text:
         return OcrResult(
             status="error",
-            message="OCR reached its processing time limit before readable text was found. Use a clearer or smaller scan, or enter details manually.",
+            message="OCR timed out after reaching its processing limit before readable text was found. Use a clearer or smaller scan, or enter details manually.",
             attempts=attempts,
         )
 
