@@ -126,7 +126,13 @@ def _process_new_uploads(cat_key: str, files_list: list) -> list[str]:
             elif not preflight.valid:
                 st.warning(f"{f.name} failed file validation and will not be retained.")
 
-        messages.append(f"✅ `{f.name}` processed successfully ({elapsed_ms:.0f}ms).")
+        validation_data = doc.to_dict().get("validation", {})
+        if validation_data.get("errors"):
+            messages.append(f"⚠️ `{f.name}` processed with issues. Review the validation/OCR details below.")
+        elif not doc.raw_text.strip():
+            messages.append(f"⚠️ `{f.name}` was stored, but no text was extracted. Check Tesseract and the OCR diagnostics.")
+        else:
+            messages.append(f"✅ `{f.name}` processed ({elapsed_ms:.0f}ms). Review extracted fields before relying on them.")
 
     return messages
 
