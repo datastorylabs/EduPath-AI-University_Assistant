@@ -4,7 +4,7 @@ EduPath is a Pakistan-specific university admissions decision-support project. I
 
 ## Current project state
 
-The existing application is a Streamlit multipage prototype. Its useful logic is being preserved while a separate FastAPI foundation is introduced incrementally. **The API foundation is not yet a production-ready replacement for the Streamlit app.**
+The original Streamlit multipage application in `Home.py` and `pages/` is the primary EduPath interface. It now uses account authentication and a database-backed per-user application snapshot. The React/Vite interface under `frontend/` is optional, not the default UI. This is ready for controlled local testing, but not production sign-off until infrastructure-specific security and OCR/AI checks are completed.
 
 The source baseline inspected for this rebuild is the September 5, 2026 Release EduPath AI v1.0.0 commit. A historical report in the repository states that 378 tests passed at that time; this rebuild has not independently rerun the complete legacy test suite.
 
@@ -12,21 +12,24 @@ The source baseline inspected for this rebuild is the September 5, 2026 Release 
 
 The current entry point is Home.py; its multipage UI is in pages/. Existing backend/ modules cover document validation/OCR, profile management, eligibility, merit calculations, and the RAG advisor. University data lives in data/universities.json; retrieval policy text is in data/policies/.
 
-To run the existing UI using its legacy dependency set:
+To run the original Streamlit UI with account security and persistent application state:
 
 ~~~bash
 python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1
 # macOS/Linux: source .venv/bin/activate
 python -m pip install -r requirements.txt
+# Copy .env.example to .env, then replace SECRET_KEY with the output of:
+python -c "import secrets; print(secrets.token_hex(32))"
+alembic -c backend/alembic.ini upgrade head
 streamlit run Home.py
 ~~~
 
-Scanned document OCR requires a compatible local Tesseract installation. Never use real student documents in a public demo environment.
+On Windows, install Tesseract OCR and make `tesseract.exe` available on PATH, or set `TESSERACT_CMD` to the full executable path. Uploads are capped at 10 MB; OCR has per-attempt and overall time limits and may request manual review. Do not use real student documents in a public demo environment.
 
 ## FastAPI foundation, authentication, and storage
 
-The new API lives under backend/app/ alongside the legacy modules; it does not replace the existing Streamlit entry point yet.
+The API under `backend/app/` continues to power authenticated API endpoints and the optional React/Vite demo; the original Streamlit UI remains the primary interface.
 
 Phase 1 added environment-driven settings, SQLAlchemy engine/session support, Alembic migrations, health endpoints, and a lightweight API dependency file.
 
@@ -44,9 +47,9 @@ Phase 4 added:
 - Private conversation records and ordered user-message history stored in the database.
 - Owner-scoped list/read/write/delete operations. A foreign user's record is returned as not found rather than exposing that it exists.
 - No-store response headers for personal profiles and conversation history, plus low-PII audit events for profile/conversation changes.
-- Alembic migration 0003_profiles_and_conversations. SQLite foreign-key enforcement is enabled for local development.
+- Alembic migrations 0003_profiles_and_conversations and 0004_streamlit_application_state. SQLite foreign-key enforcement is enabled for local development.
 
-**Current integration limitation:** the React workspace consumes saved profiles and can run a deterministic, citation-carrying programme check. The legacy Streamlit RAG advisor remains separate, and open-ended natural-language AI answers are not connected to this new interface. Whole-account deletion is now available in the profile screen; uploaded files/OCR storage, retention automation, and production database verification remain future work.
+The original Streamlit UI now has Argon2id account authentication, revocable server-side sessions, account deletion, and per-user database-backed state. Structured academic profile fields, selected program, extracted fields/statuses, and advisor chat history persist. Original uploaded bytes, raw OCR text and OCR diagnostic previews are intentionally excluded, so original files must be re-uploaded to OCR again after the session is lost. The AI advisor has an explicit policy-index build/repair action and uses a deterministic catalogue fallback when no source passages are available. The React/Vite app remains an optional API demo.
 
 The session cookie is HttpOnly; the CSRF cookie is intentionally readable by frontend JavaScript so it can be returned in the X-CSRF-Token header. Cookies use SameSite=Lax, with Secure enabled in production. Production also requires PostgreSQL, a non-placeholder secret of at least 32 characters, and explicit HTTPS CORS origins.
 
