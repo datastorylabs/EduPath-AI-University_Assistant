@@ -12,6 +12,7 @@ from backend.app.database import SessionLocal
 from backend.app.models.legacy_application_state import LegacyApplicationState
 from backend.app.models.user import User
 from backend.profile import default_profile
+from backend.private_documents import read_private_document
 
 _STRIP_KEYS = {"raw_text", "ocr_attempts", "text_preview", "file_bytes", "content_bytes", "original_bytes"}
 
@@ -92,6 +93,7 @@ def build_persistable_payload(state: Mapping[str, Any]) -> dict[str, Any]:
         "other_document_labels": _json_safe(state.get("other_document_labels") or {}),
         "processed_documents": processed,
         "stored_document_metadata": stored_names,
+        "private_uploads": _json_safe(state.get("private_uploads") or []),
         "profile_built": bool(state.get("profile_built", False)),
         "profile_source_fingerprint": state.get("profile_source_fingerprint"),
     }
@@ -117,6 +119,7 @@ def restore_application_state() -> None:
     from backend.state import session_defaults
     st.session_state.update(session_defaults())
     st.session_state["category_uploads"] = {}
+    st.session_state["private_uploads"] = []
     st.session_state["stored_document_metadata"] = {}
     with SessionLocal() as db:
         user = db.get(User, user_id)
@@ -138,6 +141,32 @@ def restore_application_state() -> None:
     ):
         value = payload.get(key, default)
         st.session_state[key] = value if isinstance(value, type(default)) or default is None else default
+    private_uploads = payload.get("private_uploads", [])
+    restored_uploads: dict[str, list[tuple[str, bytes]]] = {}
+    restored_metadata: list[dict[str, Any]] = []
+    if isinstance(private_uploads, list):
+        for item in private_uploads[:80]:
+            if not isinstance(item, dict):
+                continue
+            category = item.get("category")
+            filename = item.get("filename")
+            storage_key = item.get("storage_key")
+            fingerprint = item.get("fingerprint")
+            if not all(isinstance(v, str) and v for v in (category, filename, storage_key, fingerprint)):
+                continue
+            try:
+                content = read_private_document(user_id, storage_key)
+            except (OSError, ValueError):
+                content = None
+            if content is None:
+                continue
+            restored_uploads.setdefault(category, []).append((filename, content))
+            restored_metadata.append({
+                "category": category, "filename": filename,
+                "storage_key": storage_key, "fingerprint": fingerprint,
+            })
+    st.session_state["category_uploads"] = restored_uploads
+    st.session_state["private_uploads"] = restored_metadata
     st.session_state["_edupath_loaded_user_id"] = owner_key
 
 
