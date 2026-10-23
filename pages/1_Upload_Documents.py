@@ -74,8 +74,12 @@ def _process_new_uploads(cat_key: str, files_list: list) -> list[str]:
     The spinner covers the ENTIRE operation: OCR/extraction + state commit.
     """
     from backend.documents.pipeline import process_upload
+    from backend.documents.validation import validate_upload
+    from backend.private_documents import save_private_document
 
     messages: list[str] = []
+    user_id = st.session_state.get("_edupath_user_id")
+    private_uploads = st.session_state.setdefault("private_uploads", [])
     for f in files_list:
         content = f.getvalue()
         fp = fingerprint(content)
@@ -99,6 +103,28 @@ def _process_new_uploads(cat_key: str, files_list: list) -> list[str]:
             }
 
             doc_cache.put(content, cat_key, doc, elapsed_ms)
+
+            # Store validated originals with random names in private per-user storage.
+            preflight = validate_upload(f.name, content)
+            if preflight.valid and user_id:
+                prior = next((
+                    item for item in private_uploads
+                    if item.get("category") == cat_key
+                    and item.get("filename") == f.name
+                    and item.get("fingerprint") == fp
+                ), None)
+                if prior is None:
+                    try:
+                        storage_key = save_private_document(user_id, f.name, content)
+                        private_uploads.append({
+                            "category": cat_key, "filename": f.name,
+                            "fingerprint": fp, "storage_key": storage_key,
+                        })
+                    except (OSError, ValueError):
+                        st.session_state["_edupath_storage_error"] = "private_document_write_failed"
+                        st.error(f"{f.name} was processed for this session, but secure file storage failed.")
+            elif not preflight.valid:
+                st.warning(f"{f.name} failed file validation and will not be retained.")
 
         messages.append(f"✅ `{f.name}` processed successfully ({elapsed_ms:.0f}ms).")
 
@@ -168,16 +194,33 @@ for group_name, category_keys in UPLOAD_GROUPS.items():
                             category_uploads[cat_key] = new_files[-1:]
 
                         _process_new_uploads(cat_key, files_list)
+                        from backend.legacy_storage import persist_application_state
+                        persist_application_state()
                         st.rerun()
 
                 if existing:
                     if st.button("Remove", key=f"remove_{cat_key}"):
+                        from backend.private_documents import delete_private_document
+                        user_id = st.session_state.get("_edupath_user_id")
                         for fname, fbytes in category_uploads[cat_key]:
                             fp = fingerprint(fbytes)
                             cache_key = f"{fp}:{cat_key}"
                             processed.pop(cache_key, None)
                             doc_cache.invalidate(fbytes, cat_key)
+                            retained = []
+                            for item in st.session_state.get("private_uploads", []):
+                                if item.get("category") == cat_key and item.get("filename") == fname:
+                                    if user_id:
+                                        try:
+                                            delete_private_document(user_id, item.get("storage_key", ""))
+                                        except (OSError, ValueError):
+                                            st.session_state["_edupath_storage_error"] = "private_document_delete_failed"
+                                else:
+                                    retained.append(item)
+                            st.session_state["private_uploads"] = retained
                         del category_uploads[cat_key]
+                        from backend.legacy_storage import persist_application_state
+                        persist_application_state()
                         st.rerun()
 
     st.markdown("")
