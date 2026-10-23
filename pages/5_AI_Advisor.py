@@ -30,15 +30,7 @@ def _run_question(question: str, profile: dict[str, Any], eligibility: dict[str,
     if len(stripped) > 1200:
         st.warning("Please keep each question to 1,200 characters or fewer.")
         return
-    index_status = get_index_status()
-    if not index_status.get("ready") and not st.session_state.get("_edupath_policy_index_attempted"):
-        st.session_state["_edupath_policy_index_attempted"] = True
-        with st.spinner("Preparing the admissions knowledge base for the first question. The first run may take a few minutes..."):
-            build_result = build_index()
-        if build_result.error:
-            st.warning("The policy index could not be prepared. EduPath will use the rules-based fallback until the index is repaired.")
-        else:
-            st.session_state.pop("_edupath_policy_index_error", None)
+    # Keep questions responsive: building/downloading the local index is an explicit user action below.
     try:
         ask_result = ask(
             question=stripped,
@@ -134,7 +126,7 @@ index_status = get_index_status()
 if index_status.get("ready"):
     st.success(f"Admission knowledge index ready ({index_status.get('count', 0)} searchable passages).")
 else:
-    st.warning("The knowledge index is not ready. EduPath will try to build it on the first question; otherwise it will use the deterministic fallback.")
+    st.warning("The knowledge index is not ready. Until you build it with the button below, questions use the deterministic fallback instead of waiting on a model download.")
     if st.button("Build / repair admission knowledge index", key="build_admission_index", type="primary"):
         with st.spinner("Building the local admissions knowledge index. First-time embedding setup may take several minutes..."):
             build_result = build_index(force=bool(index_status.get("exists")))
