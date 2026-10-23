@@ -57,3 +57,30 @@ jobs:
       - name: Build production frontend
         working-directory: frontend
         run: npm run build
+
+  legacy-streamlit-security-and-ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install targeted Streamlit, OCR and storage dependencies
+        run: |
+          python -m pip install -r requirements-api.txt
+          python -m pip install "streamlit>=1.38.0" "pandas>=2.0.0" "python-dateutil>=2.8.2" "pymupdf>=1.24.0" "pillow>=10.2.0" "pytesseract>=0.3.10"
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+      - name: Verify fresh migrations and targeted legacy OCR/state tests
+        env:
+          APP_ENV: test
+          DATABASE_URL: sqlite+pysqlite:///./edupath-ci.db
+          SECRET_KEY: ci-only-secret-for-tests-not-for-deployment-000000000000
+        run: |
+          rm -f edupath-ci.db
+          alembic -c backend/alembic.ini upgrade head
+          alembic -c backend/alembic.ini check
+          python -m pytest -q tests/test_ocr.py tests/test_pdf_extraction.py tests/test_document_labels.py tests/test_document_status.py tests/test_legacy_storage.py tests/test_ocr_hardening.py
