@@ -43,5 +43,5 @@ jobs:
       - name: Compile the original Streamlit application and backend modules
         run: python -m compileall -q Home.py ui.py pages backend
       - name: Run API, persistence, private storage, OCR, pipeline, and advisor tests
-        run: python -m pytest -q tests/api tests/test_legacy_storage.py tests/test_private_documents.py tests/test_ocr.py tests/test_pipeline.py tests/test_conversational_advisor.py
+        run: python -m pytest -q tests/api tests/test_legacy_storage.py tests/test_private_documents.py tests/test_ocr.py tests/test_ocr_hardening.py tests/test_pipeline.py tests/test_conversational_advisor.py
 
