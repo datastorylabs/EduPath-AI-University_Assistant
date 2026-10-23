@@ -38,3 +38,20 @@ def test_persistable_snapshot_keeps_fields_but_drops_raw_ocr_and_upload_bytes() 
     assert payload["processed_documents"]["key"]["document_dict"]["fields"][0]["value"] == 83.5
     assert payload["chat_history"][0]["content"] == "What does my result mean?"
     assert payload["stored_document_metadata"]["intermediate_transcript"] == ["marksheet.png"]
+
+
+def test_snapshot_preserves_private_upload_reference_but_not_file_bytes() -> None:
+    state = {
+        "student_profile": {"qualification": "ICS"},
+        "category_uploads": {"intermediate_transcript": [("marksheet.pdf", b"PRIVATE_FILE_BYTES")]},
+        "private_uploads": [{
+            "category": "intermediate_transcript",
+            "filename": "marksheet.pdf",
+            "fingerprint": "a" * 64,
+            "storage_key": "b" * 32 + ".pdf",
+        }],
+    }
+    payload = build_persistable_payload(state)
+    assert payload["private_uploads"][0]["filename"] == "marksheet.pdf"
+    assert payload["private_uploads"][0]["storage_key"] == "b" * 32 + ".pdf"
+    assert "PRIVATE_FILE_BYTES" not in repr(payload)
