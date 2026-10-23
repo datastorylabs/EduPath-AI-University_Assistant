@@ -73,10 +73,53 @@ def _build_program_text(program: dict[str, Any], university: dict[str, Any]) -> 
         else "Estimated fee: (not specified).",
     )
     out += _section("Notes", reqs.get("notes", "") or "")
+    source_lines = [
+        f"- {source.get('title', 'Official university source')}: {source.get('url', '(URL not recorded)')} "
+        f"(last checked {source.get('last_verified', '(date not recorded)')}; "
+        f"status {source.get('verification_status', 'not recorded')})"
+        for source in (university.get("sources", []) or [])
+    ]
+    source_notice = (
+        "Source records are attached at university level unless their scope says otherwise. "
+        "They do not independently prove every generated program detail, campus offering, intake, "
+        "deadline, or criterion. Treat missing/uncertain values as unknown and confirm them on the "
+        "official source for the relevant program and cycle."
+    )
+    out += _section("Sources and verification limits", "\n".join(source_lines + [source_notice]))
+    return out.strip() + "\n"
+
+
+def _build_registry_source_text(record: dict[str, Any]) -> str:
+    """Create a retrieval document for one official source with explicit limits."""
+    university_names = {
+        "fast-nuces": "FAST-NUCES",
+        "nust": "NUST",
+        "comsats": "COMSATS University Islamabad",
+        "giki": "GIKI",
+        "lums": "LUMS",
+        "uet-lahore": "UET Lahore",
+        "muet": "MUET",
+        "ned": "NED University",
+        "university-of-karachi": "University of Karachi",
+        "punjab-university": "University of the Punjab",
+        "iba-karachi": "IBA Karachi",
+    }
+    uid = str(record.get("university_id", "unknown"))
+    title = str(record.get("title", "Official admissions source"))
+    out = f"# {university_names.get(uid, uid)} — Official source: {title}\n\n"
+    out += f"Source ID: {record.get('source_id', '(not recorded)')}\n"
+    out += f"Official source URL: {record.get('url', '(not recorded)')}\n"
+    out += f"Verification status: {record.get('verification_status', 'unverified')}\n"
+    out += f"Admission cycle: {record.get('admission_cycle', 'not specified')}\n"
+    out += f"Last verified: {record.get('last_verified', 'not recorded')}\n\n"
+    out += _section("Scope and verification", str(record.get("scope", "Scope not recorded.")))
+    out += _section("Source notes", str(record.get("notes", "No source notes are recorded.")))
     out += _section(
-        "Sources",
-        "Verified by EduPath against official university publications. "
-        "See the university-level overview file for source URLs and last-verified dates.",
+        "Important limitation",
+        "A source lead is not the same as a verified program rule. Never infer program eligibility, "
+        "closing merit, fees, active application dates, or campus availability from a source title alone. "
+        "If status is unverified, partially verified, stale, or conflicting, state that explicitly and "
+        "use the official URL above for confirmation.",
     )
     return out.strip() + "\n"
 
@@ -155,11 +198,33 @@ def synthesize_policy_files(
                 }
             )
 
+    # Add source-registry documents to RAG so a question about an institution
+    # outside the six-university program dataset gets an explicit coverage answer
+    # instead of unrelated results from another university.
+    source_registry_path = Path(__file__).resolve().parents[1] / "app" / "data" / "admissions_sources.json"
+    if source_registry_path.exists():
+        with source_registry_path.open("r", encoding="utf-8") as handle:
+            source_registry = json.load(handle)
+        for source in source_registry.get("sources", []) or []:
+            uid = str(source.get("university_id", "unknown"))
+            source_id = str(source.get("source_id", "source"))
+            safe_source_id = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in source_id)
+            uni_dir = out_dir / uid
+            uni_dir.mkdir(parents=True, exist_ok=True)
+            source_path = uni_dir / f"official-source-{safe_source_id}.txt"
+            source_path.write_text(_build_registry_source_text(source), encoding="utf-8")
+            written.append({
+                "university_id": uid,
+                "program_id": f"official-source-{safe_source_id}",
+                "path": str(source_path.relative_to(out_dir.parent.parent)),
+            })
+
     manifest = {
         "generated_at": date.today().isoformat(),
         "source_file": str(src),
         "source_version": metadata.get("version", "unknown"),
         "source_last_updated": metadata.get("last_updated", "unknown"),
+        "official_source_registry": str(source_registry_path),
         "files": written,
     }
 
@@ -172,7 +237,7 @@ def synthesize_policy_files(
     for entry in written:
         manifest_md += f"- {entry['path']} (university={entry['university_id']}, program={entry['program_id']})\n"
     manifest_md += (
-        "\nThese files are generated from `data/universities.json` and committed as "
+        "\nThese files are generated from `data/universities.json` plus the official-source registry at `backend/app/data/admissions_sources.json` and committed as "
         "the RAG retrieval corpus. To regenerate, run `python -m backend.rag.build_index`.\n"
     )
     (out_dir / "MANIFEST.md").write_text(manifest_md, encoding="utf-8")

@@ -7,3 +7,9 @@ font = "sans serif"
 
 [client]
 showSidebarNavigation = true
+
+[server]
+# Enforce the document pipeline's 10 MB per-file limit before files reach Python.
+maxUploadSize = 10
+enableXsrfProtection = true
+enableCORS = true

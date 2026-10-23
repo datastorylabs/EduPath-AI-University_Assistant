@@ -192,7 +192,18 @@ def index_policies(
     collection = collection if collection is not None else build_collection()
 
     existing_ids: set[str] = set()
-    if not force:
+    if force:
+        # A force rebuild must remove old content first; merely adding new IDs
+        # leaves stale policies in Chroma and can surface conflicting criteria.
+        try:
+            old_ids = list(collection.get().get("ids", []))
+            for offset in range(0, len(old_ids), 500):
+                collection.delete(ids=old_ids[offset:offset + 500])
+        except Exception as exc:
+            raise RuntimeError(
+                "Forced policy re-index aborted because existing chunks could not be cleared."
+            ) from exc
+    else:
         try:
             count = collection.count()
             if count > 0:

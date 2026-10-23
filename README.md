@@ -1,101 +1,61 @@
 # EduPath AI
 
-An AI-powered university admission assistant for Pakistani students.
+EduPath is a Pakistan-specific university admissions assistant. The original Streamlit multipage interface is the primary application. It combines academic document upload, OCR/text extraction, editable profile fields, university/program data, deterministic eligibility and merit calculations, an admissions RAG advisor with a rule-based fallback, and an action plan.
 
-EduPath AI combines student document information, structured university/program requirements, rule-based eligibility checking, missing-document detection, deadline information, and grounded AI-generated explanations to guide students through Pakistani university admissions.
+EduPath is a guidance tool, not an official university decision. Students must confirm criteria, intake cycles, deadlines, and fees with the university.
 
-## What it does
+## Run locally (Windows)
 
-1. **Upload academic documents** — Students upload FSc / A-Levels transcripts, entry test score cards, CNIC / B-Form, and other documents.
-2. **Build a verified profile** — Extracted information is shown for verification and editing.
-3. **Select university & program** — Browse a curated dataset of Pakistani universities and programs.
-4. **Check eligibility** — Rule-based engine compares the profile against program requirements.
-5. **AI advisor** — Grounded explanations and answers based on the student's profile and stored admission data.
-6. **Action plan dashboard** — Track progress, current actions, and upcoming steps.
+Requirements: Python 3.11+, Git, and Tesseract OCR with the English language pack for scanned images/PDFs. Start in the repository root.
 
-## Tech stack
+~~~powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+~~~
 
-- **Python** — backend logic
-- **Streamlit** — web interface
-- **JSON** — initial university data store
-- **Git** — version control
+Create a local environment file and a unique development secret:
 
-## Project structure
+~~~powershell
+Copy-Item .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"
+~~~
 
-```
-.
-├── Home.py                         # Main Streamlit entry point
-├── requirements.txt                # Python dependencies
-├── README.md                       # This file
-├── .gitignore                      # Git ignore rules
-├── ui.py                           # Shared Streamlit UI helpers
-├── backend/                        # Backend modules
-│   ├── __init__.py
-│   ├── documents/                  # Validation, OCR, PDF, and field extraction
-│   ├── data_loader.py              # Load and query universities.json
-│   ├── parser.py                   # Backward-compatible document parsing facade
-│   ├── profile.py                  # Student profile management
-│   ├── eligibility.py              # Rule-based eligibility engine
-│   └── advisor.py                  # Grounded AI advisor responses
-├── pages/                          # Streamlit multipage UI
-│   ├── 1_Upload_Documents.py
-│   ├── 2_Profile.py
-│   ├── 3_Select_Program.py
-│   ├── 4_Eligibility_Check.py
-│   ├── 5_AI_Advisor.py
-│   └── 6_Action_Plan.py
-├── data/
-│   └── universities.json           # Curated Pakistani university data
-└── sample_docs/                    # Placeholder for sample documents
-```
+Open .env and replace the placeholder SECRET_KEY with the generated value. Keep .env private. Set GROQ_API_KEY in .streamlit/secrets.toml (copy .streamlit/secrets.toml.example) or in the environment to enable the Groq-backed RAG advisor. Without a valid key, EduPath uses its deterministic/rule-based fallback where supported.
 
-## Getting started
+Apply the database migrations and launch the original UI from the repository root:
 
-1. Create a virtual environment (recommended):
-
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-2. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Install Tesseract OCR for PDF/image extraction (Windows):
-
-```bash
-winget install --exact --id UB-Mannheim.TesseractOCR
-tesseract --version
-tesseract --list-langs
-```
-
-Ensure `eng` appears in the language list. Put Tesseract on `PATH`, or set `TESSERACT_CMD` to its executable, for example `C:\Program Files\Tesseract-OCR\tesseract.exe`.
-
-4. Run the app:
-
-```bash
+~~~powershell
+alembic -c backend/alembic.ini upgrade head
 streamlit run Home.py
-```
+~~~
 
-## Document extraction
+Open the local URL Streamlit prints, normally http://localhost:8501. The Streamlit app accesses the configured database directly; you do **not** need to keep the FastAPI server running for the original UI. To test the API separately, open a second terminal and run `python -m uvicorn backend.app.main:app --reload`.
 
-Text files are decoded directly. PDFs with embedded text are read with PyMuPDF; scanned PDF pages and PNG/JPEG uploads use English Tesseract OCR with lightweight grayscale/autocontrast preprocessing. OCR is limited to 10 PDF pages, 5 rendered scan pages, 40 megapixels per image, and 20 seconds per OCR operation. PyMuPDF does not require Poppler.
+## Security and persistence
 
-All extracted values must be verified before building a profile. Password-protected, corrupt, oversized, blank, or partially processed uploads surface a clear validation message and can be completed manually.
+- Accounts use Argon2id password hashing and revocable server-side sessions; the raw session token is held in Streamlit server-side session state, not browser storage.
+- Each account's profile, selected program, extracted structured fields, labels, and advisor history are persisted in a user-owned database row.
+- Original uploaded files are validated, stored under random server-generated names in a private per-account directory outside the web root, and never committed to Git. Sign-out clears in-memory application state; account deletion removes the account's private upload directory and saved database records.
+- Upload validation checks supported extensions, file size, and file signatures. OCR is bounded and reports when Tesseract is unavailable or extraction quality is insufficient; OCR output must be reviewed before relying on it.
+- Eligibility decisions are deterministic and based on the bundled catalog. Missing or estimated data must not be treated as official eligibility.
+- The RAG advisor retrieves university policy text and displays source labels when available. If the LLM or retrieval system is unavailable, it falls back to rule-based answers; it does not guarantee admissions outcomes.
+- Local file storage is suitable for development and controlled demos. Before public deployment, add malware scanning, encrypted storage/backups, a documented retention policy, secure reverse-proxy/TLS configuration, and operational monitoring. Do not upload real student records to a public demo until those protections are in place.
 
-For a future Debian-based Streamlit deployment, install `tesseract-ocr` and `tesseract-ocr-eng` through a deployment-specific `packages.txt`; local Windows development does not use that file.
+## Data and limitations
 
-## MVP limitations
+The catalog includes six universities, but source-verified cycle-specific deterministic rules are only enabled for selected FAST-NUCES and NUST computing programmes. RAG policy coverage varies by institution/program and is only as current as the bundled source files. The Groq-backed advisor requires your own API key; no key is included in the repository.
 
-- OCR is English-first and can misread low-quality or complex document layouts; always verify extracted details.
-- The AI advisor is rule-based and grounded in the stored university data. A real LLM can be plugged in later.
-- University data is static JSON and should be verified against official university websites before use.
+The private upload directory defaults to data/private_uploads/ and can be moved by setting EDUPATH_PRIVATE_STORAGE_DIR to a private persistent disk location. Ensure that directory is backed up and never exposed by a static web server.
 
-## Next steps
+## Verification
 
-- Add an LLM for more natural advisor conversations while keeping eligibility logic rule-based.
-- Expand the university dataset and add city/program filters.
-- Add user accounts and persistent storage.
+~~~powershell
+python -m compileall -q Home.py ui.py pages backend
+python -m pytest tests/api tests/test_legacy_storage.py tests/test_private_documents.py tests/test_ocr.py tests/test_ocr_hardening.py tests/test_pipeline.py tests/test_conversational_advisor.py -q
+alembic -c backend/alembic.ini current
+alembic -c backend/alembic.ini check
+~~~
+
+See BUILD_STATUS.md for the latest verification checkpoint and remaining production limitations.

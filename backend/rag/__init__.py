@@ -12,11 +12,17 @@ from datetime import date
 from typing import Any
 
 from backend.rag import llm
-from backend.rag.config import DEFAULT_K
+from backend.rag.alternatives import answer_alternative_universities, answer_named_university
+from backend.rag.config import COLLECTION_NAME, DEFAULT_K
 from backend.rag.indexer import build_collection, get_persistent_client, index_policies
 from backend.rag.policy_synthesis import synthesize_policy_files
 from backend.rag.prompter import build_prompt
-from backend.rag.retriever import RetrievedChunk, get_retriever
+from backend.rag.retriever import (
+    RetrievedChunk,
+    get_retriever,
+    detect_intent,
+    wants_university_alternatives,
+)
 
 
 @dataclass
@@ -38,6 +44,20 @@ class BuildResult:
     error: str | None = None
 
 
+def get_index_status() -> dict[str, Any]:
+    """Inspect index readiness without loading/downloading the embedding model."""
+    try:
+        client = get_persistent_client()
+        try:
+            collection = client.get_collection(name=COLLECTION_NAME)
+        except Exception:
+            return {"ready": False, "exists": False, "count": 0}
+        count = int(collection.count())
+        return {"ready": count > 0, "exists": True, "count": count}
+    except Exception as exc:
+        return {"ready": False, "exists": False, "count": 0, "error": type(exc).__name__}
+
+
 def ask(
     question: str,
     profile: dict[str, Any] | None = None,
@@ -47,24 +67,59 @@ def ask(
     university_id: str | None = None,
     program_id: str | None = None,
 ) -> AskResult:
-    """Run the full RAG pipeline and return a grounded answer.
+    """Run the RAG pipeline and return a grounded answer.
 
-    ``university_id`` and ``program_id`` are the canonical dataset IDs for the
-    student's selected university/program. They are forwarded to the rule-based
-    fallback so it can resolve the target even when ``profile["target_university"]``
-    holds a display name that does not match any dataset ID.
-
-    Falls back to the rule-based advisor when the LLM is unavailable or
-    returns an error.
+    The latest question determines the retrieval scope. In particular, asking
+    for alternatives deliberately widens retrieval beyond the dropdown's
+    selected university. The selected IDs are retained only as conversational
+    context and for the deterministic fallback.
     """
+    profile = profile or {}
+    retrieval_question = question
+    if wants_university_alternatives(question):
+        context_fields = []
+        for key, label in (
+            ("target_program", "target program"),
+            ("qualification", "qualification"),
+            ("aggregate", "recorded aggregate"),
+            ("hssc_group", "HSSC group"),
+        ):
+            value = profile.get(key)
+            if value not in (None, ""):
+                context_fields.append(f"{label}: {value}")
+        if context_fields:
+            retrieval_question = (
+                question
+                + "\n\nComparison retrieval context (use this only to retrieve relevant evidence): "
+                + "; ".join(context_fields)
+                + ". Search across universities, not just the selected university."
+            )
+
     try:
         retriever = get_retriever()
-        evidence = retriever.retrieve(question, k=k, university_id=university_id)
+        evidence = retriever.retrieve(retrieval_question, k=k, university_id=university_id)
     except Exception as exc:
         evidence = []
-        retrieval_error = f"Retrieval failed: {exc}"
+        retrieval_error = f"Retrieval failed: {type(exc).__name__}"
     else:
         retrieval_error = None
+
+    # With no retrieved evidence, never ask the LLM to improvise admissions policy.
+    if not evidence:
+        fallback = _invoke_fallback(
+            _rule_based_fallback,
+            question, profile, eligibility,
+            university_id=university_id, program_id=program_id,
+        )
+        return AskResult(
+            answer=fallback,
+            sources=[],
+            evidence=[],
+            grounded=True,
+            error=(retrieval_error or "No matching policy evidence was retrieved; used the rules-based fallback."),
+            engine="rule-based",
+            model=None,
+        )
 
     bundle = build_prompt(
         question=question,
@@ -82,7 +137,7 @@ def ask(
         )
         return AskResult(
             answer=fallback,
-            sources=[],
+            sources=[chunk.source_label for chunk in evidence],
             evidence=evidence,
             grounded=True,
             error=None,
@@ -125,42 +180,59 @@ def _rule_based_fallback(
     university_id: str | None = None,
     program_id: str | None = None,
 ) -> str:
-    """Invoke the legacy rule-based advisor when the LLM is unavailable.
+    """Invoke a grounded catalog-based fallback when the LLM is unavailable."""
+    profile = profile or {}
+    eligibility = eligibility or {}
 
-    Resolves the target university/program from the caller-supplied IDs
-    (which match the dataset) — not from ``profile["target_university"]``
-    which is a display name that may not match any dataset ``id``.
-    """
+    if wants_university_alternatives(question) or detect_intent(question).get("compare_universities"):
+        return answer_alternative_universities(
+            question,
+            profile,
+            university_id or profile.get("target_university_id"),
+            program_id or profile.get("target_program_id"),
+        )
+
+    mentioned_university = detect_intent(question).get("university_id")
+    if mentioned_university and mentioned_university != university_id:
+        return answer_named_university(
+            question,
+            profile,
+            university_id,
+            program_id,
+            mentioned_university,
+        )
+
     try:
         from backend.advisor import answer_question
         from backend.data_loader import get_program, get_university, load_universities
     except ImportError:
         return "The AI advisor is not available. Please check your configuration."
 
-    profile = profile or {}
-    eligibility = eligibility or {}
-
     target_uni_id = university_id or profile.get("target_university_id")
     target_prog_id = program_id or profile.get("target_program_id")
     if not target_uni_id or not target_prog_id:
         return (
-            "I can help with your admission questions. To get started, select a "
-            "university and program, or ask about a specific university "
-            "(e.g., 'What are the requirements for NUST?')."
+            "I can answer questions about the programs in EduPath's catalog. "
+            "Tell me which university or program you are considering so I can retrieve its specific requirements."
         )
 
     try:
         data = load_universities()
         uni = get_university(data, target_uni_id)
         if uni is None:
-            return "I could not find the target university in the dataset."
+            return "I could not find the selected university in the local catalog."
         program = get_program(uni, target_prog_id)
         if program is None:
-            return "I could not find the target program at the selected university."
+            return "I could not find the selected program in the local catalog."
     except Exception:
-        return "I could not find the target university or program in the dataset."
+        return "I could not read the local university catalog."
 
-    return answer_question(question, profile, eligibility, program)
+    program_context = dict(program)
+    program_context["university_name"] = uni.get("name", target_uni_id)
+    program_context["university_website"] = uni.get("website")
+    program_context["university_sources"] = uni.get("sources", []) or []
+    program_context["university_campuses"] = uni.get("campuses", []) or []
+    return answer_question(question, profile, eligibility, program_context)
 
 
 def _invoke_fallback(
@@ -172,13 +244,7 @@ def _invoke_fallback(
     university_id: str | None,
     program_id: str | None,
 ) -> str:
-    """Call ``fallback_fn`` with or without the new ID kwargs.
-
-    The Step 3 test suite monkeypatches ``_rule_based_fallback`` with a
-    3-argument lambda that does not accept ``university_id`` /
-    ``program_id``. Inspect the callable's signature and drop the new
-    kwargs when it cannot receive them, so the old tests keep passing.
-    """
+    """Call older monkeypatched fallbacks without passing unsupported ID kwargs."""
     import inspect
 
     try:
@@ -204,10 +270,7 @@ def _invoke_fallback(
 
 
 def build_index(force: bool = False) -> BuildResult:
-    """Synthesize policy files from JSON and index them into ChromaDB.
-
-    When force=True, re-synthesizes even if the policy files already exist.
-    """
+    """Synthesize policy files from JSON and index them into ChromaDB."""
     try:
         from backend.rag.config import POLICIES_DIR, UNIVERSITIES_PATH
 
@@ -219,7 +282,7 @@ def build_index(force: bool = False) -> BuildResult:
 
         client = get_persistent_client()
         collection = build_collection(client)
-        index_result = index_policies(policies_dir=POLICIES_DIR, collection=collection)
+        index_result = index_policies(policies_dir=POLICIES_DIR, collection=collection, force=force)
 
         return BuildResult(
             synthesized_files=synthesized,
@@ -228,12 +291,11 @@ def build_index(force: bool = False) -> BuildResult:
             error=None,
         )
     except Exception as exc:
-        return BuildResult(error=str(exc))
+        return BuildResult(error=f"Policy index build failed ({type(exc).__name__}).")
 
 
 def is_available() -> bool:
-    """Check whether the RAG pipeline is fully configured."""
     return llm.is_available()
 
 
-__all__ = ["ask", "build_index", "is_available", "AskResult", "BuildResult"]
+__all__ = ["ask", "build_index", "get_index_status", "is_available", "AskResult", "BuildResult"]

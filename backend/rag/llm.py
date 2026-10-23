@@ -7,6 +7,7 @@ Catches authentication, rate-limit, and timeout errors into clean messages.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 import os
 import sys
 from typing import Any
@@ -134,7 +135,8 @@ def _call_groq(system: str, user_message: str) -> tuple[str | None, str | None, 
 
     def _attempt(model: str) -> tuple[str | None, str | None]:
         try:
-            client = Groq(api_key=api_key)
+            # Bound latency/retries so a stalled provider cannot hang the UI.
+            client = Groq(api_key=api_key, timeout=25.0, max_retries=1)
             completion = client.chat.completions.create(
                 model=model,
                 messages=[
@@ -163,9 +165,9 @@ def _call_groq(system: str, user_message: str) -> tuple[str | None, str | None, 
             msg = str(exc)
             if "does not exist" in msg or "model_not_found" in msg.lower():
                 return None, "__not_found__"
-            return None, f"Groq rejected the request: {msg}"
+            return None, "Groq rejected the request. Check the configured model and provider settings."
         except Exception as exc:
-            return None, f"Unexpected error calling Groq: {exc}"
+            return None, f"Unexpected provider error ({type(exc).__name__})."
 
     answer, error = _attempt(LLM_MODEL)
     if error == "__not_found__" and LLM_FALLBACK_MODEL and LLM_FALLBACK_MODEL != LLM_MODEL:
@@ -195,7 +197,13 @@ def generate(bundle: PromptBundle) -> LlmResponse:
         return LlmResponse(answer="", sources=[], grounded=False, error=error, model=model_used)
 
     sources = [chunk.source_label for chunk in bundle.evidence]
-    grounded = any(tag in answer for tag in ["[verified fact]", "[calculation]", "[recommendation]", "[uncertain]"])
+    tagged = any(tag in answer for tag in ["[verified fact]", "[calculation]", "[recommendation]", "[uncertain]"])
+    cited_indexes = {
+        int(index)
+        for index in re.findall(r"\[(\d+)\]", answer)
+        if 1 <= int(index) <= len(sources)
+    }
+    grounded = tagged or bool(cited_indexes)
 
     return LlmResponse(answer=answer, sources=sources, grounded=grounded, error=None, model=model_used)
 

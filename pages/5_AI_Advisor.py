@@ -5,7 +5,7 @@ from typing import Any
 
 import streamlit as st
 
-from backend.rag import ask, is_available
+from backend.rag import ask, build_index, get_index_status, is_available
 from backend.rag.llm import get_package_status
 from backend.state import ensure_eligibility, get_profile, get_selection
 from ui import init_session_state, inject_theme, nav_row, page_header, render_sidebar
@@ -27,6 +27,10 @@ def _run_question(question: str, profile: dict[str, Any], eligibility: dict[str,
     uni_id = st.session_state.get("selected_university_id")
     prog_id = st.session_state.get("selected_program_id")
 
+    if len(stripped) > 1200:
+        st.warning("Please keep each question to 1,200 characters or fewer.")
+        return
+    # Keep questions responsive: building/downloading the local index is an explicit user action below.
     try:
         ask_result = ask(
             question=stripped,
@@ -70,7 +74,8 @@ def _run_question(question: str, profile: dict[str, Any], eligibility: dict[str,
     while len(sources_by_index) < len(history):
         sources_by_index.append([])
     sources_by_index[len(history) - 1] = list(ask_result.sources)
-
+    from backend.legacy_storage import persist_application_state
+    persist_application_state()
     st.rerun()
 
 
@@ -117,6 +122,22 @@ with st.container(border=True):
             "To enable the full RAG advisor, set `GROQ_API_KEY` in `.streamlit/secrets.toml`."
         )
 
+index_status = get_index_status()
+if index_status.get("ready"):
+    st.success(f"Admission knowledge index ready ({index_status.get('count', 0)} searchable passages).")
+else:
+    st.warning("The knowledge index is not ready. Until you build it with the button below, questions use the deterministic fallback instead of waiting on a model download.")
+    if st.button("Build / repair admission knowledge index", key="build_admission_index", type="primary"):
+        with st.spinner("Building the local admissions knowledge index. First-time embedding setup may take several minutes..."):
+            build_result = build_index(force=bool(index_status.get("exists")))
+        if build_result.error:
+            st.error("Index build failed. Check the terminal for local dependency diagnostics; no student data was changed.")
+        else:
+            st.session_state["_edupath_policy_index_attempted"] = True
+            st.session_state.pop("_edupath_policy_index_error", None)
+            st.success(f"Index built: {build_result.indexed_chunks} searchable passages.")
+            st.rerun()
+
 st.markdown("### Quick Questions")
 quick_questions = [
     "What is my eligibility verdict?",
@@ -136,6 +157,12 @@ for row_start in range(0, len(quick_questions), 3):
 st.divider()
 
 st.markdown("### Chat")
+if st.button("Clear saved conversation", key="clear_advisor_conversation"):
+    st.session_state["chat_history"] = []
+    st.session_state["chat_history_sources"] = []
+    from backend.legacy_storage import persist_application_state
+    persist_application_state()
+    st.rerun()
 history = st.session_state["chat_history"]
 sources_by_index = st.session_state["chat_history_sources"]
 

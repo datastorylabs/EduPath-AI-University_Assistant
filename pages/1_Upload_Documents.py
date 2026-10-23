@@ -74,8 +74,12 @@ def _process_new_uploads(cat_key: str, files_list: list) -> list[str]:
     The spinner covers the ENTIRE operation: OCR/extraction + state commit.
     """
     from backend.documents.pipeline import process_upload
+    from backend.documents.validation import validate_upload
+    from backend.private_documents import save_private_document
 
     messages: list[str] = []
+    user_id = st.session_state.get("_edupath_user_id")
+    private_uploads = st.session_state.setdefault("private_uploads", [])
     for f in files_list:
         content = f.getvalue()
         fp = fingerprint(content)
@@ -100,9 +104,66 @@ def _process_new_uploads(cat_key: str, files_list: list) -> list[str]:
 
             doc_cache.put(content, cat_key, doc, elapsed_ms)
 
-        messages.append(f"✅ `{f.name}` processed successfully ({elapsed_ms:.0f}ms).")
+            # Store validated originals with random names in private per-user storage.
+            preflight = validate_upload(f.name, content)
+            if preflight.valid and user_id:
+                prior = next((
+                    item for item in private_uploads
+                    if item.get("category") == cat_key
+                    and item.get("filename") == f.name
+                    and item.get("fingerprint") == fp
+                ), None)
+                if prior is None:
+                    try:
+                        storage_key = save_private_document(user_id, f.name, content)
+                        private_uploads.append({
+                            "category": cat_key, "filename": f.name,
+                            "fingerprint": fp, "storage_key": storage_key,
+                        })
+                    except (OSError, ValueError):
+                        st.session_state["_edupath_storage_error"] = "private_document_write_failed"
+                        st.error(f"{f.name} was processed for this session, but secure file storage failed.")
+            elif not preflight.valid:
+                st.warning(f"{f.name} failed file validation and will not be retained.")
+
+        validation_data = doc.to_dict().get("validation", {})
+        if validation_data.get("errors"):
+            messages.append(f"⚠️ `{f.name}` processed with issues. Review the validation/OCR details below.")
+        elif not doc.raw_text.strip():
+            messages.append(f"⚠️ `{f.name}` was stored, but no text was extracted. Check Tesseract and the OCR diagnostics.")
+        else:
+            messages.append(f"✅ `{f.name}` processed ({elapsed_ms:.0f}ms). Review extracted fields before relying on them.")
 
     return messages
+
+
+def _delete_private_upload_refs(cat_key: str, files_to_remove: list[tuple[str, bytes]]) -> None:
+    """Delete private-file metadata by content fingerprint, not filename alone."""
+    from backend.private_documents import delete_private_document
+
+    user_id = st.session_state.get("_edupath_user_id")
+    target_fingerprints = {fingerprint(content) for _filename, content in files_to_remove}
+    retained = []
+    for item in st.session_state.get("private_uploads", []):
+        matches = (
+            item.get("category") == cat_key
+            and item.get("fingerprint") in target_fingerprints
+        )
+        if not matches:
+            retained.append(item)
+            continue
+        if not user_id:
+            retained.append(item)
+            continue
+        try:
+            delete_private_document(user_id, item.get("storage_key", ""))
+        except (OSError, ValueError):
+            # Retain the reference so we can recover/clean up the file rather than
+            # silently orphaning it after a failed delete.
+            retained.append(item)
+            st.session_state["_edupath_storage_error"] = "private_document_delete_failed"
+            st.error("A private upload could not be removed from disk. Please check storage permissions.")
+    st.session_state["private_uploads"] = retained
 
 
 for group_name, category_keys in UPLOAD_GROUPS.items():
@@ -125,11 +186,12 @@ for group_name, category_keys in UPLOAD_GROUPS.items():
 
                 existing = category_uploads.get(cat_key)
                 if existing:
-                    filenames = [f[0] for f in existing]
-                    st.markdown(
-                        " ".join(f"✅ `{fn}`" for fn in filenames),
-                        unsafe_allow_html=True,
-                    )
+                    filenames = [str(f[0])[:255] for f in existing]
+                    st.caption("Saved privately: " + ", ".join(filenames))
+                else:
+                    previous_names = st.session_state.get("stored_document_metadata", {}).get(cat_key, [])
+                    if previous_names:
+                        st.caption("A saved file could not be restored from private storage: " + ", ".join(str(n)[:255] for n in previous_names) + ". Re-upload to process it again.")
 
                 uploaded = st.file_uploader(
                     "Upload",
@@ -145,38 +207,48 @@ for group_name, category_keys in UPLOAD_GROUPS.items():
                     for f in files_list:
                         new_files.append((f.name, f.getvalue()))
 
-                    existing_names = {f[0] for f in existing} if existing else set()
-                    new_names = {f[0] for f in new_files}
+                    existing_fingerprints = {fingerprint(file_bytes) for _name, file_bytes in (existing or [])}
+                    new_fingerprints = {fingerprint(file_bytes) for _name, file_bytes in new_files}
 
-                    if new_names.issubset(existing_names):
-                        pass  # Already uploaded and processed — no state change, no rerun
+                    if new_fingerprints.issubset(existing_fingerprints):
+                        pass  # Same file content is already active in this category.
                     else:
                         if allows_multiple:
-                            if existing:
-                                for item in new_files:
-                                    if item[0] not in existing_names:
-                                        existing.append(item)
+                            if existing is None:
+                                category_uploads[cat_key] = list(new_files)
                             else:
-                                category_uploads[cat_key] = new_files
+                                for item in new_files:
+                                    item_fingerprint = fingerprint(item[1])
+                                    if item_fingerprint not in existing_fingerprints:
+                                        existing.append(item)
+                                        existing_fingerprints.add(item_fingerprint)
                         else:
-                            for fname, fbytes in (existing or []):
+                            old_files = list(existing or [])
+                            for _fname, fbytes in old_files:
                                 old_fp = fingerprint(fbytes)
                                 old_key = f"{old_fp}:{cat_key}"
                                 processed.pop(old_key, None)
                                 doc_cache.invalidate(fbytes, cat_key)
+                            _delete_private_upload_refs(cat_key, old_files)
                             category_uploads[cat_key] = new_files[-1:]
 
                         _process_new_uploads(cat_key, files_list)
+                        from backend.legacy_storage import persist_application_state
+                        persist_application_state()
                         st.rerun()
 
                 if existing:
                     if st.button("Remove", key=f"remove_{cat_key}"):
-                        for fname, fbytes in category_uploads[cat_key]:
+                        files_to_remove = list(category_uploads[cat_key])
+                        for _fname, fbytes in files_to_remove:
                             fp = fingerprint(fbytes)
                             cache_key = f"{fp}:{cat_key}"
                             processed.pop(cache_key, None)
                             doc_cache.invalidate(fbytes, cat_key)
+                        _delete_private_upload_refs(cat_key, files_to_remove)
                         del category_uploads[cat_key]
+                        from backend.legacy_storage import persist_application_state
+                        persist_application_state()
                         st.rerun()
 
     st.markdown("")
