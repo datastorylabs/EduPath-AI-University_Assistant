@@ -30,6 +30,7 @@ from backend.app.security import (
 from backend.app.services.audit import record_security_event
 from backend.app.services.passwords import hash_password, password_hash_needs_rehash, verify_password
 from backend.app.services.rate_limit import enforce_rate_limit
+from backend.private_documents import delete_user_private_documents
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -232,6 +233,14 @@ def delete_account(
         record_security_event(db, request, settings, "auth.account_delete_failed", user_id=user_id)
         db.commit()
         raise HTTPException(status_code=403, detail="Password confirmation failed")
+
+    # Private originals live outside the database. Remove them before the
+    # account transaction; if cleanup fails, refuse to claim deletion succeeded.
+    try:
+        delete_user_private_documents(user_id)
+    except OSError:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Private data cleanup is temporarily unavailable") from None
 
     # Delete child rows explicitly in one transaction for predictable behavior
     # across SQLite demos and PostgreSQL deployments.
