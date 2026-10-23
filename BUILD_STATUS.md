@@ -64,16 +64,27 @@
 - Added API tests for missing CSRF, unauthenticated calls, failed password confirmation, successful deletion, removal of dependent rows, and the unlinked audit event. Verified by [GitHub Actions run #97](https://github.com/datastorylabs/EduPath-AI-University_Assistant/actions/runs/39924702482) at code checkpoint `219a3ac5db820751e967fb95c995f5909f61d79e`: **64 tests passed, 2 warnings**; fresh SQLite migration reached revision 0003; `alembic check` reported no schema drift; and the React/Vite production build succeeded.
 - Remaining privacy work: private file/document storage and OCR, a defined retention policy and automation for security audit metadata, and live production PostgreSQL/Redis verification. No real student documents should be uploaded to a public demo.
 
+## Final integration — original Streamlit UI, security, OCR, advisor, and storage: implemented; CI update in progress
+
+- The primary UI is the original Streamlit dashboard and multipage flow in `Home.py` and `pages/`; React/Vite is optional.
+- Added sign-in/registration and active-session validation to Streamlit page runs. Passwords are Argon2id hashes, opaque session-token digests are stored server-side, and account lifecycle supports logout and password-confirmed account deletion.
+- Added Alembic revision 0004 and an owner-scoped JSON snapshot table for profile fields, selected university/program, structured document extraction fields/status, labels, and advisor history.
+- The snapshot intentionally does not store uploaded bytes, OCR raw text, or OCR diagnostic previews. File names and extraction outcomes can be restored, but original files need to be re-uploaded to repeat OCR.
+- OCR now caps bytes and image dimensions, downsizes oversized images, parses quoted/expanded Tesseract paths, and observes per-attempt and overall runtime limits.
+- The advisor exposes index readiness, has an explicit build/repair button with progress reporting, bounds Groq calls, treats OCR/profile/retrieved data as untrusted content, and uses deterministic fallback when retrieval has no evidence.
+- CI now includes targeted Streamlit state privacy and OCR tests alongside the existing API/migration and optional React build jobs.
+- Not production signed off: live PostgreSQL/Redis, actual Tesseract/Groq host configuration, email recovery/MFA, private storage for original uploaded documents, retention policy, and complete admissions-source audits remain outstanding.
+
 ## Known blockers and risks
 
 - Email verification, password recovery, MFA, account administration, and frontend authentication integration are not implemented.
 - Academic profile and conversation endpoints now have owner-scoped queries and dedicated tests; private document CRUD/storage endpoints are still absent.
-- The Streamlit application is not integrated with the new API authentication boundary or Phase 4 profile/conversation storage.
+- Streamlit now has its own account/session guard and owner-scoped application-state snapshot; it is not yet wired to the FastAPI React demo's conversation APIs.
 - Redis and PostgreSQL have not been tested as live production services. Rate limiting is currently IP-based; deployments must configure trusted proxies correctly and review broader abuse prevention.
 - Private document storage, retention/deletion policy and automation, and real production PostgreSQL/Redis verification remain incomplete.
 - Current official-source admissions research is incomplete. The source registry is not evidence that every listed institution has verified program rules for the 2026–27 cycle.
 - The linked filxxa/EduPath-AI is read-only for this connected account. Changes are staged on a separate branch in the writable synchronized copy datastorylabs/EduPath-AI-University_Assistant; no main branch or original repository has been changed.
 
-## Next task — Phase 7: private-document boundary and retention
+## Next task — deployment validation
 
-Define a documented privacy/retention policy and implement private document storage/OCR only behind authenticated owner-scoped routes, file size/type validation, malware-scanning hooks, and deletion/retention controls. Keep document bytes out of logs, public web paths, and model prompts unless the student explicitly authorizes a safe extraction workflow. Continue to verify SQLite migrations in CI and exercise PostgreSQL/Redis in a separate staging environment before production use.
+Configure TLS, production PostgreSQL and TLS Redis, deployment secrets, email recovery/MFA, private original-document storage if required, a documented retention policy, and official-source audits for more universities. Do not call the app production-ready until those infrastructure-specific checks pass.
