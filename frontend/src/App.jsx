@@ -297,7 +297,7 @@ function AuthScreen({ onSubmit, busy, error, onClearError, apiUnavailable, notic
             <div className="alert alert-error" role="alert">{localError || error}</div>
           ) : null}
 
-          <form className="auth-form onSubmit={submit}>
+          <form className="auth-form" onSubmit={submit}>
             <label className="field-label" htmlFor="auth-email">Email address</label>
             <input
               id="auth-email"
