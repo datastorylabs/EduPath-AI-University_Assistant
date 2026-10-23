@@ -24,21 +24,14 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 Open .env and replace the placeholder SECRET_KEY with the generated value. Keep .env private. Set GROQ_API_KEY in .streamlit/secrets.toml (copy .streamlit/secrets.toml.example) or in the environment to enable the Groq-backed RAG advisor. Without a valid key, EduPath uses its deterministic/rule-based fallback where supported.
 
-Apply database migrations, then start the API in Terminal 1:
+Apply the database migrations and launch the original UI from the repository root:
 
 ~~~powershell
 alembic -c backend/alembic.ini upgrade head
-python -m uvicorn backend.app.main:app --reload
-~~~
-
-Keep Terminal 1 open. Start the original Streamlit interface in Terminal 2 from the repository root:
-
-~~~powershell
-.\.venv\Scripts\Activate.ps1
 streamlit run Home.py
 ~~~
 
-Open the local URL Streamlit prints, normally http://localhost:8501. The UI authenticates against the local database and persists each signed-in user's application snapshot. The API and Streamlit process must use the same .env/database settings.
+Open the local URL Streamlit prints, normally http://localhost:8501. The Streamlit app accesses the configured database directly; you do **not** need to keep the FastAPI server running for the original UI. To test the API separately, open a second terminal and run `python -m uvicorn backend.app.main:app --reload`.
 
 ## Security and persistence
 
@@ -59,7 +52,8 @@ The private upload directory defaults to data/private_uploads/ and can be moved 
 ## Verification
 
 ~~~powershell
-python -m pytest tests/api tests/test_legacy_storage.py tests/test_private_documents.py tests/test_ocr.py tests/test_pipeline.py tests/test_conversational_advisor.py -q
+python -m compileall -q Home.py ui.py pages backend
+python -m pytest tests/api tests/test_legacy_storage.py tests/test_private_documents.py tests/test_ocr.py tests/test_ocr_hardening.py tests/test_pipeline.py tests/test_conversational_advisor.py -q
 alembic -c backend/alembic.ini current
 alembic -c backend/alembic.ini check
 ~~~
