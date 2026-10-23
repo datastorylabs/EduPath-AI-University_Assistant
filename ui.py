@@ -12,10 +12,19 @@ from backend.profile import is_profile_complete
 
 
 def init_session_state() -> None:
-    """Initialize the canonical application session state."""
+    """Authenticate, restore the owner's saved state, and persist a safe snapshot."""
+    from backend.legacy_auth import require_signed_in
     from backend.state import init_session_state as init_application_state
+    from backend.legacy_storage import persist_application_state, restore_application_state
 
+    require_signed_in()
     init_application_state()
+    try:
+        restore_application_state()
+        persist_application_state()
+    except Exception:
+        st.error("EduPath could not safely load your saved data. Check database settings and run Alembic migrations before continuing.")
+        st.stop()
 
 
 def get_universities_data() -> dict[str, Any]:
@@ -73,6 +82,14 @@ def render_sidebar() -> None:
                 on_click=state.reset_application,
             )
 
+        notice = st.session_state.pop("_edupath_auth_notice", None)
+        if notice:
+            st.success(notice)
+        if st.session_state.get("_edupath_storage_error"):
+            st.error("Your latest changes could not be saved. Check the database and migration setup before leaving this page.")
+        from backend.legacy_auth import render_account_controls
+        render_account_controls()
+
         st.markdown("[About](#)")
 
 
@@ -102,45 +119,26 @@ def verdict_card(result: dict[str, Any]) -> None:
 
 
 def missing_docs_card(missing: list[dict[str, Any]]) -> None:
-    if not missing:
-        st.markdown(
-            """
-            <div class="ep-card" style="background:#ECFDF5;border-color:#A7F3D0;">
-                <div class="ep-list-item" style="color:#047857;font-weight:600;">✅ All required documents are present.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        return
-    items = "".join(f'<div class="ep-list-item">❌ {doc["name"]}</div>' for doc in missing)
-    st.markdown(
-        f"""
-        <div class="ep-card" style="background:#FEF2F2;border-color:#FECACA;">
-            <h4 style="margin:0 0 0.5rem 0;color:#B91C1C;">Missing required documents</h4>
-            {items}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.container(border=True):
+        if not missing:
+            st.success("All required documents are present.")
+            return
+        st.subheader("Missing required documents")
+        for doc in missing:
+            st.write(f"❌ {str(doc.get('name') or 'Required document')[:180]}")
 
 
 def requirements_card(program: dict[str, Any]) -> None:
     req = program.get("requirements", {})
-    quals = ", ".join(req.get("qualification", [])) or "N/A"
-    cutoff = f'<div class="ep-list-item">📊 Estimated cutoff: <strong>{req.get("estimated_cutoff")}%</strong></div>' if req.get("estimated_cutoff") else ""
-    st.markdown(
-        f"""
-        <div class="ep-card">
-            <h4 style="margin:0 0 0.75rem 0;color:#1E1B34;">Program Requirements</h4>
-            <div class="ep-list-item">🎓 Qualification: <strong>{quals}</strong></div>
-            <div class="ep-list-item">✅ Minimum aggregate: <strong>{req.get('minimum_aggregate')}%</strong></div>
-            {cutoff}
-            <div class="ep-list-item">📝 Admission test: <strong>{req.get('admission_test', 'N/A')}</strong></div>
-            <div class="ep-list-item">📅 Deadline: <strong>{req.get('application_deadline', 'N/A')}</strong></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    quals = ", ".join(str(v) for v in (req.get("qualification") or [])) or "N/A"
+    with st.container(border=True):
+        st.subheader("Program Requirements")
+        st.write("🎓 **Qualification:**", quals)
+        st.write("✅ **Minimum aggregate:**", f"{req.get('minimum_aggregate')}%" if req.get("minimum_aggregate") is not None else "Not specified")
+        if req.get("estimated_cutoff") is not None:
+            st.write("📊 **Historical / estimated cutoff:**", f"{req.get('estimated_cutoff')}%")
+        st.write("📝 **Admission test:**", req.get("admission_test") or "Not specified")
+        st.write("📅 **Application deadline:**", req.get("application_deadline") or "Not specified")
 
 
 # ---------------------------------------------------------------------------

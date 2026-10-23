@@ -100,6 +100,7 @@ def update_profile(
 
     if profile_fingerprint(new_profile) != previous_fp:
         invalidate_eligibility()
+    _persist_current_state()
 
     return new_profile
 
@@ -139,6 +140,7 @@ def set_document_label(filename: str, category: str | None) -> None:
         labels[filename] = category
     st.session_state["document_labels"] = labels
     invalidate_eligibility()
+    _persist_current_state()
 
 
 def get_effective_category(filename: str, auto_category: str | None) -> str | None:
@@ -233,6 +235,7 @@ def set_selection(university_id: str, program_id: str) -> None:
         st.session_state["selected_program_with_university"] = None
 
     invalidate_eligibility()
+    _persist_current_state()
 
 
 def get_selection() -> tuple[Any, Any, Any, Any]:
@@ -468,8 +471,22 @@ def build_next_actions() -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
+def _persist_current_state() -> None:
+    """Persist after mutations when a signed-in account exists."""
+    if not st.session_state.get("_edupath_user_id"):
+        return
+    try:
+        from backend.legacy_storage import persist_application_state
+        persist_application_state()
+    except Exception:
+        st.session_state["_edupath_storage_error"] = "persistence"
+
+
 def reset_application() -> None:
-    """Wipe application and temporary upload state before starting fresh."""
+    """Clear application data without destroying the signed-in account session."""
     for key in list(st.session_state.keys()):
-        del st.session_state[key]
+        if not str(key).startswith("_edupath_"):
+            del st.session_state[key]
     st.session_state.update(session_defaults())
+    st.session_state["stored_document_metadata"] = {}
+    _persist_current_state()
