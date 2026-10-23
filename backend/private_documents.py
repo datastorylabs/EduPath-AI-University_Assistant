@@ -46,12 +46,17 @@ def save_private_document(user_id: str | UUID, filename: str, content: bytes) ->
     if suffix not in _ALLOWED_SUFFIXES:
         raise ValueError("Unsupported document type.")
     directory = _user_directory(user_id)
-    directory.mkdir(parents=True, exist_ok=True)
+    directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+    # Private student uploads must not be world-readable on POSIX deployments.
+    if os.name != "nt":
+        os.chmod(PRIVATE_STORAGE_ROOT, 0o700)
+        os.chmod(directory, 0o700)
     key = f"{uuid.uuid4().hex}{suffix}"
     target = _safe_file_path(user_id, key)
     temporary = target.with_name(target.name + ".tmp")
     try:
-        with temporary.open("xb") as handle:
+        descriptor = os.open(str(temporary), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
