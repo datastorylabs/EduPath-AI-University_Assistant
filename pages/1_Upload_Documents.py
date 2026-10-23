@@ -125,11 +125,12 @@ for group_name, category_keys in UPLOAD_GROUPS.items():
 
                 existing = category_uploads.get(cat_key)
                 if existing:
-                    filenames = [f[0] for f in existing]
-                    st.markdown(
-                        " ".join(f"✅ `{fn}`" for fn in filenames),
-                        unsafe_allow_html=True,
-                    )
+                    filenames = [str(f[0])[:255] for f in existing]
+                    st.caption("Currently uploaded: " + ", ".join(filenames))
+                else:
+                    previous_names = st.session_state.get("stored_document_metadata", {}).get(cat_key, [])
+                    if previous_names:
+                        st.caption("Previously analyzed (original files are not retained): " + ", ".join(str(n)[:255] for n in previous_names))
 
                 uploaded = st.file_uploader(
                     "Upload",

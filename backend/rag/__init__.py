@@ -13,7 +13,7 @@ from typing import Any
 
 from backend.rag import llm
 from backend.rag.alternatives import answer_alternative_universities, answer_named_university
-from backend.rag.config import DEFAULT_K
+from backend.rag.config import COLLECTION_NAME, DEFAULT_K
 from backend.rag.indexer import build_collection, get_persistent_client, index_policies
 from backend.rag.policy_synthesis import synthesize_policy_files
 from backend.rag.prompter import build_prompt
@@ -42,6 +42,20 @@ class BuildResult:
     indexed_chunks: int = 0
     new_chunks: int = 0
     error: str | None = None
+
+
+def get_index_status() -> dict[str, Any]:
+    """Inspect index readiness without loading/downloading the embedding model."""
+    try:
+        client = get_persistent_client()
+        try:
+            collection = client.get_collection(name=COLLECTION_NAME)
+        except Exception:
+            return {"ready": False, "exists": False, "count": 0}
+        count = int(collection.count())
+        return {"ready": count > 0, "exists": True, "count": count}
+    except Exception as exc:
+        return {"ready": False, "exists": False, "count": 0, "error": type(exc).__name__}
 
 
 def ask(
@@ -89,6 +103,23 @@ def ask(
         retrieval_error = f"Retrieval failed: {type(exc).__name__}"
     else:
         retrieval_error = None
+
+    # With no retrieved evidence, never ask the LLM to improvise admissions policy.
+    if not evidence:
+        fallback = _invoke_fallback(
+            _rule_based_fallback,
+            question, profile, eligibility,
+            university_id=university_id, program_id=program_id,
+        )
+        return AskResult(
+            answer=fallback,
+            sources=[],
+            evidence=[],
+            grounded=True,
+            error=(retrieval_error or "No matching policy evidence was retrieved; used the rules-based fallback."),
+            engine="rule-based",
+            model=None,
+        )
 
     bundle = build_prompt(
         question=question,
@@ -260,11 +291,11 @@ def build_index(force: bool = False) -> BuildResult:
             error=None,
         )
     except Exception as exc:
-        return BuildResult(error=f"{type(exc).__name__}: {exc}")
+        return BuildResult(error=f"Policy index build failed ({type(exc).__name__}).")
 
 
 def is_available() -> bool:
     return llm.is_available()
 
 
-__all__ = ["ask", "build_index", "is_available", "AskResult", "BuildResult"]
+__all__ = ["ask", "build_index", "get_index_status", "is_available", "AskResult", "BuildResult"]

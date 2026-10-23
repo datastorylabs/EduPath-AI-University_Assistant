@@ -27,7 +27,9 @@ except ImportError:  # pragma: no cover - exercised when optional runtime deps a
     pytesseract = None  # type: ignore[assignment]
 
 OCR_LANGUAGE = "eng"
-OCR_TIMEOUT_SECONDS = 30
+OCR_TIMEOUT_SECONDS = 12
+OCR_TOTAL_TIMEOUT_SECONDS = 45
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_PIXELS = 40_000_000
 MIN_OCR_CHARS = 15
 MIN_IMAGE_LONG_EDGE = 1500
@@ -48,9 +50,11 @@ PSM_MODES = [6, 11, 12, 3]
 
 def _find_tesseract() -> str | None:
     """Locate a Tesseract binary from env, PATH, or known Windows install paths."""
-    env_cmd = os.environ.get("TESSERACT_CMD")
-    if env_cmd and os.path.isfile(env_cmd):
-        return env_cmd
+    env_cmd = os.environ.get("TESSERACT_CMD", "").strip().strip('"').strip("'")
+    if env_cmd:
+        env_cmd = os.path.expandvars(os.path.expanduser(env_cmd))
+        if os.path.isfile(env_cmd):
+            return env_cmd
 
     path_binary = shutil.which("tesseract")
     if path_binary:
@@ -147,12 +151,18 @@ def _exif_and_resize(image: Any) -> Any:
     logger.debug(f"Image after EXIF transpose: {image.size} (was {original_size})")
 
     long_edge = max(image.size)
-    if long_edge and long_edge < MIN_IMAGE_LONG_EDGE:
+    if long_edge and long_edge > MAX_IMAGE_LONG_EDGE:
+        scale = MAX_IMAGE_LONG_EDGE / long_edge
+        new_size = tuple(max(1, round(side * scale)) for side in image.size)
+        resampling = getattr(Image, "Resampling", Image).LANCZOS
+        image = image.resize(new_size, resampling)
+        logger.debug("Image downscaled to the configured OCR maximum dimension.")
+    elif long_edge and long_edge < MIN_IMAGE_LONG_EDGE:
         scale = min(MIN_IMAGE_LONG_EDGE / long_edge, 2.5)
         new_size = tuple(max(1, round(side * scale)) for side in image.size)
         resampling = getattr(Image, "Resampling", Image).LANCZOS
         image = image.resize(new_size, resampling)
-        logger.debug(f"Image upscaled from {original_size} to {image.size} (scale={scale:.2f})")
+        logger.debug("Image upscaled for OCR readability.")
     return image
 
 
@@ -326,15 +336,15 @@ def _reconstruct_lines_from_data(data: dict[str, list[Any]]) -> tuple[str, float
 
 
 def _run_ocr_with_psm(
-    prepared: Any, psm: int
+    prepared: Any, psm: int, timeout_seconds: int | None = None
 ) -> tuple[str, float | None, int]:
-    """Run Tesseract with a specific PSM mode and return (text, confidence, word_count)."""
+    """Run Tesseract with a specific PSM mode and a bounded time budget."""
     data = pytesseract.image_to_data(
         prepared,
         lang=OCR_LANGUAGE,
         config=f"--oem 3 --psm {psm}",
         output_type=pytesseract.Output.DICT,
-        timeout=OCR_TIMEOUT_SECONDS,
+        timeout=timeout_seconds or OCR_TIMEOUT_SECONDS,
     )
     return _reconstruct_lines_from_data(data)
 
@@ -380,6 +390,8 @@ def ocr_image(image: Any) -> OcrResult:
     best_confidence: float | None = None
     best_words = 0
     best_score = 0.0
+    started = time.monotonic()
+    timed_out = False
 
     try:
         for variant_name, prepare_fn in _PREPROCESSING_VARIANTS.items():
@@ -392,12 +404,21 @@ def ocr_image(image: Any) -> OcrResult:
             logger.debug(f"Variant {variant_name}: prepared image size={prepared.size}")
 
             for psm in PSM_MODES:
+                remaining = OCR_TOTAL_TIMEOUT_SECONDS - (time.monotonic() - started)
+                if remaining <= 0:
+                    timed_out = True
+                    break
                 try:
-                    text, conf, words = _run_ocr_with_psm(prepared, psm)
-                except RuntimeError:
-                    raise
-                except Exception as e:
-                    logger.debug(f"OCR variant={variant_name} psm={psm} failed: {e}")
+                    timeout_seconds = max(1, min(OCR_TIMEOUT_SECONDS, int(remaining)))
+                    text, conf, words = _run_ocr_with_psm(prepared, psm, timeout_seconds)
+                except RuntimeError as exc:
+                    if "timeout" in str(exc).casefold() or "timed out" in str(exc).casefold():
+                        timed_out = True
+                        break
+                    logger.debug("OCR attempt failed with RuntimeError.")
+                    continue
+                except Exception as exc:
+                    logger.debug("OCR attempt failed (%s).", type(exc).__name__)
                     continue
 
                 attempt = OcrAttempt(
@@ -420,6 +441,8 @@ def ocr_image(image: Any) -> OcrResult:
                     best_text = text
                     best_confidence = conf
                     best_words = words
+            if timed_out:
+                break
 
         if best_text:
             best_text = _deduplicate_lines(best_text)
@@ -437,6 +460,13 @@ def ocr_image(image: Any) -> OcrResult:
             status="error",
             message="OCR could not read this marksheet. Please upload a higher-resolution "
             "image, ensure the text is upright and well-lit, or enter details manually.",
+            attempts=attempts,
+        )
+
+    if timed_out and not best_text:
+        return OcrResult(
+            status="error",
+            message="OCR reached its processing time limit before readable text was found. Use a clearer or smaller scan, or enter details manually.",
             attempts=attempts,
         )
 
@@ -460,12 +490,17 @@ def ocr_image(image: Any) -> OcrResult:
         raw_text=best_text,
         confidence=best_confidence,
         word_count=best_words,
+        message="OCR returned partial text after reaching its processing time limit; verify every field manually." if timed_out else None,
         attempts=attempts,
     )
 
 
 def extract_image_ocr(content: bytes) -> OcrResult:
     """Decode uploaded image bytes and run OCR without leaking decoder errors."""
+    if not isinstance(content, bytes) or not content:
+        return OcrResult(status="error", message="The uploaded image is empty or invalid.")
+    if len(content) > MAX_IMAGE_BYTES:
+        return OcrResult(status="error", message="The image is larger than the 10 MB OCR limit.")
     try:
         image = _open_image(content)
     except Exception:

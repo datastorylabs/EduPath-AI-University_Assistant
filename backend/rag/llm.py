@@ -135,7 +135,8 @@ def _call_groq(system: str, user_message: str) -> tuple[str | None, str | None, 
 
     def _attempt(model: str) -> tuple[str | None, str | None]:
         try:
-            client = Groq(api_key=api_key)
+            # Bound latency/retries so a stalled provider cannot hang the UI.
+            client = Groq(api_key=api_key, timeout=25.0, max_retries=1)
             completion = client.chat.completions.create(
                 model=model,
                 messages=[
@@ -164,9 +165,9 @@ def _call_groq(system: str, user_message: str) -> tuple[str | None, str | None, 
             msg = str(exc)
             if "does not exist" in msg or "model_not_found" in msg.lower():
                 return None, "__not_found__"
-            return None, f"Groq rejected the request: {msg}"
+            return None, "Groq rejected the request. Check the configured model and provider settings."
         except Exception as exc:
-            return None, f"Unexpected error calling Groq: {exc}"
+            return None, f"Unexpected provider error ({type(exc).__name__})."
 
     answer, error = _attempt(LLM_MODEL)
     if error == "__not_found__" and LLM_FALLBACK_MODEL and LLM_FALLBACK_MODEL != LLM_MODEL:
