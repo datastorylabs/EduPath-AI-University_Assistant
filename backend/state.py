@@ -56,6 +56,7 @@ def session_defaults() -> dict[str, Any]:
         "chat_history_sources": [],
         "document_labels": {},
         "category_uploads": {},
+        "private_uploads": [],
         "processed_documents": {},
         "profile_built": False,
         "profile_source_fingerprint": None,
