@@ -21,14 +21,17 @@ Primary UI: Original Streamlit multipage interface (Home.py and pages/).
 - Groq-backed retrieval-augmented admissions advisor with source labels and a rule-based fallback when the LLM/retrieval runtime is unavailable.
 - Owner-scoped account/application-state persistence and private conversation records in the FastAPI database layer.
 
-## Verification status
+## Verification status — PASS
 
-Changes have been committed to this branch. Do not consider the final checkpoint verified until the newly triggered GitHub Actions workflow completes successfully. The workflow runs:
-- API/auth/admissions/persistence tests
-- Legacy Streamlit state-snapshot tests
-- Private file-storage tests
-- OCR/pipeline and advisor tests
-- Fresh SQLite migration and Alembic schema-drift checks
+Verified by [GitHub Actions run #149](https://github.com/datastorylabs/EduPath-AI-University_Assistant/actions/runs/39932234043) at code checkpoint `1dd11f8330c2735a5676026e59326827812376e9`.
+
+- **96 tests passed, 3 skipped, 2 warnings.**
+- Fresh SQLite database migrated through `0004_streamlit_application_state (head)`.
+- `alembic check` reported `No new upgrade operations detected`.
+- `python -m compileall -q Home.py ui.py pages backend` completed successfully.
+- API/auth/admissions/persistence, legacy state snapshots, private file storage, OCR/pipeline, and advisor regression tests passed.
+
+This verifies the automated local-demo test pipeline, not a production deployment or real Tesseract/Groq account configuration. Scanned-image OCR still needs a local Tesseract executable and English language pack, and the LLM-backed advisor needs a valid `GROQ_API_KEY`.
 
 ## Known limitations — not production certified
 
