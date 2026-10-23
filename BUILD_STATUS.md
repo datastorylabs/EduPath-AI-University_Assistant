@@ -21,17 +21,17 @@ Primary UI: Original Streamlit multipage interface (Home.py and pages/).
 - Groq-backed retrieval-augmented admissions advisor with source labels and a rule-based fallback when the LLM/retrieval runtime is unavailable.
 - Owner-scoped account/application-state persistence and private conversation records in the FastAPI database layer.
 
-## Verification status — PASS
+## Verification status — verified 2026-10-23
 
-Verified by [GitHub Actions run #149](https://github.com/datastorylabs/EduPath-AI-University_Assistant/actions/runs/39932234043) at code checkpoint `1dd11f8330c2735a5676026e59326827812376e9`.
+[GitHub Actions run #150](https://github.com/datastorylabs/EduPath-AI-University_Assistant/actions/runs/39932479615) passed at code checkpoint `19401c08e018088113bd1f64e64d1df60db4528b`:
 
-- **96 tests passed, 3 skipped, 2 warnings.**
-- Fresh SQLite database migrated through `0004_streamlit_application_state (head)`.
+- **98 passed, 3 skipped, 2 warnings.**
+- Fresh SQLite migration reached `0004_streamlit_application_state`.
 - `alembic check` reported `No new upgrade operations detected`.
-- `python -m compileall -q Home.py ui.py pages backend` completed successfully.
-- API/auth/admissions/persistence, legacy state snapshots, private file storage, OCR/pipeline, and advisor regression tests passed.
+- `python -m compileall -q Home.py ui.py pages backend` succeeded.
+- The suite covers API/auth/admissions, owner-scoped snapshot privacy, private-file round trips/path-traversal rejection/permissions, OCR limits, document pipeline behavior, and advisor-intent tests.
 
-This verifies the automated local-demo test pipeline, not a production deployment or real Tesseract/Groq account configuration. Scanned-image OCR still needs a local Tesseract executable and English language pack, and the LLM-backed advisor needs a valid `GROQ_API_KEY`.
+The 3 skipped tests are reported by the suite rather than counted as passes; run OCR locally with Tesseract installed to verify scanned-image/PDF behavior on the target machine.
 
 ## Known limitations — not production certified
 
