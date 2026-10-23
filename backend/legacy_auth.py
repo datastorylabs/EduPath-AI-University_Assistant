@@ -21,6 +21,7 @@ from backend.app.models.student_profile import StudentProfile
 from backend.app.models.user import User
 from backend.app.security import issue_session, token_digest, utcnow
 from backend.app.services.passwords import hash_password, verify_password
+from backend.private_documents import delete_user_private_documents
 
 _DUMMY_HASH = hash_password("edupath-never-used-dummy-password-for-timing")
 _ATTEMPTS: dict[str, tuple[int, int]] = {}
@@ -236,8 +237,9 @@ def sign_out_current_session() -> None:
                 session.revoked_at = utcnow()
                 _audit(db, "streamlit.auth.logout", user_id=session.user_id)
                 db.commit()
-    # Leave current widget state alone until rerun; it is hidden on the login
-    # screen and cleared safely when a new account's snapshot is loaded.
+    # Clear private application state immediately on sign-out, not only when a
+    # different account signs in.
+    _clear_application_keys()
     for key in ("_edupath_session_token", "_edupath_user_id", "_edupath_email", "_edupath_loaded_user_id", "_edupath_auth_notice"):
         st.session_state.pop(key, None)
     st.rerun()
@@ -261,6 +263,12 @@ def delete_current_account(password: str) -> tuple[bool, str]:
             db.commit()
             return False, "Password confirmation failed."
 
+        # Remove private original uploads before deleting the account record.
+        try:
+            delete_user_private_documents(user.id)
+        except OSError:
+            db.rollback()
+            return False, "Private document storage could not be cleaned up; the account was not deleted."
         owned_conversations = select(Conversation.id).where(Conversation.user_id == user.id)
         db.execute(delete(ConversationMessage).where(ConversationMessage.conversation_id.in_(owned_conversations)))
         db.execute(delete(Conversation).where(Conversation.user_id == user.id))
@@ -284,7 +292,7 @@ def render_account_controls() -> None:
         if st.button("Sign out", key="edupath_signout", use_container_width=True):
             sign_out_current_session()
         st.markdown("**Delete account permanently**")
-        st.caption("This removes your saved profile, analyzed document fields/status, advisor history, and active sessions. Uploaded original files are not retained. Minimal account-unlinked security audit metadata may remain.")
+        st.caption("This removes your saved profile, analyzed document fields/status, advisor history, private original uploads, and active sessions. Minimal account-unlinked security audit metadata may remain.")
         confirmed = st.checkbox("I understand this permanently deletes my account and saved data.", key="edupath_delete_confirm")
         password = st.text_input("Confirm current password", type="password", max_chars=128, key="edupath_delete_password")
         if st.button("Permanently delete account", disabled=not confirmed or not password, key="edupath_delete_account"):
