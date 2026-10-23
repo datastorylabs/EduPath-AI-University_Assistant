@@ -1,6 +1,6 @@
-# EduPath frontend
+# Optional React/Vite API demo
 
-This folder contains the React/Vite interface for the incremental EduPath rebuild. It is designed for a local hackathon demo and uses the FastAPI backend for authentication and data. It does not contain a second mock database or an authentication bypass.
+The primary EduPath interface is the original Streamlit application. From the repository root, install `requirements.txt`, apply `alembic -c backend/alembic.ini upgrade head`, and run `streamlit run Home.py`. This folder contains an optional React/Vite interface for testing the FastAPI APIs; it does not contain a mock database or an authentication bypass.
 
 ## Run locally
 
@@ -59,4 +59,4 @@ The guided adviser is deterministic for now. It uses the saved profile, only cur
 - The API URL must be a same-origin path or explicit HTTP(S) URL; non-local production API URLs must use HTTPS.
 - Production should serve the SPA and API from the same site, preferably with a reverse proxy. The backend CORS allowlist and HTTPS cookie settings must match that deployment.
 
-Account deletion removes the account, profile, conversation/message history, and sessions after CSRF and current-password confirmation. Minimal security audit metadata may be retained without an account link. Before using real student documents, finish private document storage/OCR, a documented retention policy and automation, and live production PostgreSQL/Redis verification.
+The primary Streamlit state snapshot retains structured profile and extraction fields/status, selected program, and advisor history. Uploaded file bytes and raw OCR text are not persisted. Before public use, configure live PostgreSQL/Redis, Tesseract on the actual target host, a valid Groq key/model, private original-file storage if required, recovery/MFA, and a documented retention policy.
