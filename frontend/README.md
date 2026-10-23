@@ -45,6 +45,7 @@ The output is written to dist/. Set VITE_API_BASE_URL to /api when a reverse pro
 - Explore the currently source-verified programme rules and check minimum eligibility.
 - Create a private review session and run a guided programme match or eligibility-gap check.
 - Reopen and delete saved sessions.
+- Permanently delete the account and owned saved data from the profile screen after confirming the current password.
 
 The guided adviser is deterministic for now. It uses the saved profile, only current source-verified computing rules, and source citations. It is not a free-form chatbot and does not estimate admission probability. The catalogue is deliberately incomplete.
 
@@ -58,4 +59,4 @@ The guided adviser is deterministic for now. It uses the saved profile, only cur
 - The API URL must be a same-origin path or explicit HTTP(S) URL; non-local production API URLs must use HTTPS.
 - Production should serve the SPA and API from the same site, preferably with a reverse proxy. The backend CORS allowlist and HTTPS cookie settings must match that deployment.
 
-Before using real student data, finish the remaining platform work for private document storage/OCR, account-wide deletion and retention, and live production PostgreSQL/Redis verification.
+Account deletion removes the account, profile, conversation/message history, and sessions after CSRF and current-password confirmation. Minimal security audit metadata may be retained without an account link. Before using real student documents, finish private document storage/OCR, a documented retention policy and automation, and live production PostgreSQL/Redis verification.

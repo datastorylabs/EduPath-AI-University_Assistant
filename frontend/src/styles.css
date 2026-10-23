@@ -3254,3 +3254,26 @@ svg {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Phase 6: explicit, visually distinct account-deletion controls. */
+.account-danger-panel { border-color: rgba(185, 72, 72, 0.38); }
+.account-danger-heading h3 { margin: 8px 0; }
+.account-danger-copy {
+  max-width: 820px;
+  color: var(--text-muted, #777f90);
+  line-height: 1.65;
+}
+.account-delete-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 20px;
+}
+.account-delete-form .form-field { flex: 1 1 240px; min-width: 0; }
+.account-delete-form input { width: 100%; }
+.account-delete-form .button { flex: 0 0 auto; }
+@media (max-width: 640px) {
+  .account-delete-form .button { width: 100%; justify-content: center; }
+}

@@ -46,7 +46,7 @@ Phase 4 added:
 - No-store response headers for personal profiles and conversation history, plus low-PII audit events for profile/conversation changes.
 - Alembic migration 0003_profiles_and_conversations. SQLite foreign-key enforcement is enabled for local development.
 
-**Current integration limitation:** the React workspace now consumes saved profiles and can run a deterministic, citation-carrying programme check. The legacy Streamlit RAG advisor remains separate, and open-ended natural-language AI answers are not connected to this new interface. Uploaded files/OCR storage, retention automation, whole-account deletion, and production database verification remain future work.
+**Current integration limitation:** the React workspace consumes saved profiles and can run a deterministic, citation-carrying programme check. The legacy Streamlit RAG advisor remains separate, and open-ended natural-language AI answers are not connected to this new interface. Whole-account deletion is now available in the profile screen; uploaded files/OCR storage, retention automation, and production database verification remain future work.
 
 The session cookie is HttpOnly; the CSRF cookie is intentionally readable by frontend JavaScript so it can be returned in the X-CSRF-Token header. Cookies use SameSite=Lax, with Secure enabled in production. Production also requires PostgreSQL, a non-placeholder secret of at least 32 characters, and explicit HTTPS CORS origins.
 
@@ -68,6 +68,7 @@ python -m uvicorn backend.app.main:app --reload
 Local endpoints:
 - GET /health/live and GET /health/ready — liveness and database readiness.
 - GET /auth/csrf, POST /auth/register, POST /auth/login, GET /auth/me, POST /auth/logout, and POST /auth/logout-all — authentication/session endpoints.
+- DELETE /auth/account — permanently deletes the signed-in account, academic profile, conversations/messages, and sessions after CSRF validation and current-password confirmation.
 - GET /profile/me, PUT /profile/me, and DELETE /profile/me — read, create/replace, or delete the signed-in user's academic profile.
 - POST /conversations, GET /conversations, GET /conversations/{id}, POST /conversations/{id}/messages, POST /conversations/{id}/program-check, and DELETE /conversations/{id} — private conversation history and deterministic profile-based programme checks.
 - /admissions/catalog, /admissions/universities, /admissions/sources, /admissions/rules, /admissions/evaluate, and /admissions/compare — public admissions catalogue and decision-support APIs.
@@ -101,7 +102,7 @@ alembic -c backend/alembic.ini check
 
 Phase 2 is foundational authentication, not a complete security certification. Email verification, password recovery, MFA, account administration, and integration of the legacy Streamlit UI with the new API are not implemented. The React workspace covers login and the new profile/conversation APIs, but is still a demo-oriented incremental integration. Registration currently returns a conflict for duplicate email addresses; account enumeration protection requires a broader email-verification flow and is not claimed here. Academic profiles and conversations are now owner-scoped in the API, but uploaded documents still have no private API storage boundary. Redis/PostgreSQL production services have not been exercised in this environment. Login rate limiting is currently IP-based; production deployments must configure trusted proxies correctly, and broader abuse controls should be reviewed.
 
-Private document storage, malware scanning, document retention/deletion, whole-account deletion, trusted-proxy configuration, and the Streamlit-to-API trust boundary remain future work. Do not use real student documents in a public demo until those protections exist.
+Whole-account deletion is implemented through a password-confirmed, CSRF-protected endpoint and profile-screen control. Private document storage, malware scanning, document retention policy/automation, trusted-proxy configuration, and the Streamlit-to-API trust boundary remain future work. Minimal security audit metadata may be retained without an account link after deletion. Do not use real student documents in a public demo until private document protections exist.
 
 ## University data status
 

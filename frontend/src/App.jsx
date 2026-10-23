@@ -238,7 +238,7 @@ function ProgramCheckMessage({ payload }) {
   );
 }
 
-function AuthScreen({ onSubmit, busy, error, onClearError, apiUnavailable }) {
+function AuthScreen({ onSubmit, busy, error, onClearError, apiUnavailable, notice }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -292,11 +292,12 @@ function AuthScreen({ onSubmit, busy, error, onClearError, apiUnavailable }) {
               <span>Start the backend and refresh this page before signing in.</span>
             </div>
           ) : null}
+          {notice ? <div className="alert alert-success" role="status">{notice}</div> : null}
           {(localError || error) ? (
             <div className="alert alert-error" role="alert">{localError || error}</div>
           ) : null}
 
-          <form className="auth-form" onSubmit={submit}>
+          <form className="auth-form onSubmit={submit}>
             <label className="field-label" htmlFor="auth-email">Email address</label>
             <input
               id="auth-email"
@@ -457,7 +458,8 @@ function ProfileFields({ draft, onChange }) {
   );
 }
 
-function ProfilePage({ profile, draft, setDraft, onSave, onDelete, busy, onNavigate }) {
+function ProfilePage({ profile, draft, setDraft, onSave, onDelete, onDeleteAccount, busy, onNavigate }) {
+  const [accountDeletePassword, setAccountDeletePassword] = useState("");
   const progress = profileProgress(profile);
   const level = progress >= 100 ? "progress-100" : progress >= 75 ? "progress-75" : progress >= 50 ? "progress-50" : progress >= 25 ? "progress-25" : "progress-0";
   return (
@@ -522,6 +524,32 @@ function ProfilePage({ profile, draft, setDraft, onSave, onDelete, busy, onNavig
           </button>
         </aside>
       </div>
+
+      <section className="panel account-danger-panel" aria-labelledby="account-delete-heading">
+        <div className="account-danger-heading">
+          <span className="section-kicker">ACCOUNT CONTROL</span>
+          <h3 id="account-delete-heading">Delete your EduPath account</h3>
+          <p className="account-danger-copy">This permanently removes your account, saved academic profile, advisor sessions, messages, and active sessions. You must re-enter your current password. Minimal security audit metadata may be retained without an account link.</p>
+        </div>
+        <form className="account-delete-form" onSubmit={async (event) => {
+          event.preventDefault();
+          if (!accountDeletePassword) return;
+          if (!window.confirm("Permanently delete your EduPath account and saved data? This cannot be undone.")) return;
+          const password = accountDeletePassword;
+          setAccountDeletePassword("");
+          await onDeleteAccount(password);
+        }}>
+          <div className="form-field">
+            <label htmlFor="account-delete-password">Confirm current password</label>
+            <input id="account-delete-password" type="password" autoComplete="current-password"
+              minLength={1} maxLength={128} value={accountDeletePassword}
+              onChange={(event) => setAccountDeletePassword(event.target.value)} required />
+          </div>
+          <button className="button button-quiet button-danger" type="submit" disabled={busy || !accountDeletePassword}>
+            <Icon name="trash" size={15} /> Permanently delete account
+          </button>
+        </form>
+      </section>
     </div>
   );
 }
@@ -1042,6 +1070,32 @@ export default function App() {
     }
   };
 
+  const deleteAccount = async (password) => {
+    setBusy(true);
+    setError("");
+    setToast("");
+    try {
+      await apiRequest("/auth/account", { method: "DELETE", csrfToken, body: { password } });
+      setUser(null);
+      setCsrfToken("");
+      setProfile(null);
+      setDraft({ ...EMPTY_DRAFT });
+      setRules([]);
+      setCatalog(null);
+      setUniversities([]);
+      setConversations([]);
+      setActiveConversation(null);
+      setSelectedRuleId("");
+      setEvaluation(null);
+      setPage("overview");
+      setToast("Your account and saved personal data were permanently deleted.");
+    } catch (problem) {
+      showError(problem instanceof Error ? problem.message : "Your account could not be deleted.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const evaluateSelectedRule = async () => {
     const rule = rules.find((item) => item.evaluation_available && (item.university_id + "|" + item.program_id + "|" + item.cycle) === selectedRuleId);
     if (!rule) {
@@ -1186,6 +1240,7 @@ export default function App() {
         error={error}
         onClearError={() => setError("")}
         apiUnavailable={apiUnavailable}
+        notice={toast}
       />
     );
   }
@@ -1265,6 +1320,7 @@ export default function App() {
               setDraft={setDraft}
               onSave={saveProfile}
               onDelete={deleteProfile}
+              onDeleteAccount={deleteAccount}
               busy={busy}
               onNavigate={setPage}
             />

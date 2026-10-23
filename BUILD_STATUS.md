@@ -1,6 +1,6 @@
 # EduPath Rebuild — Build Status
 
-**Last updated:** 2026-10-22  
+**Last updated:** 2026-10-23  
 **Working branch:** rebuild/phase-1-foundation  
 **Baseline:** main at 5a36ccb76b722ff9f1f3fe5a7c95d100750478ff (Release EduPath AI v1.0.0, 2026-09-05)
 
@@ -56,16 +56,24 @@
 - Added frontend setup and deployment guidance, strict static-host security headers, and a Node-based production build job in GitHub Actions. Verified by GitHub Actions run #91 at code checkpoint `bb749bb983674492950e5b7ad361a6295429be42`: the React/Vite production build passed; a fresh SQLite database migrated to `0003_profiles_and_conversations (head)`; `alembic check` reported `No new upgrade operations detected`; and the API/admissions/advisor suite passed 62 tests with 2 warnings. The subsequent build-status edit is documentation-only and is newer than this verified code checkpoint.
 - Limitations: original Streamlit UI remains separate; frontend has no document-upload UI/private document storage; full account deletion and retention workflow are still outstanding. Prefer same-site production hosting/reverse proxy because auth cookies currently use SameSite=Lax.
 
+## Phase 6 — Account deletion and user data control: IMPLEMENTED
+
+- Added DELETE /auth/account with an explicit current-password confirmation, CSRF validation against the active session, and a bounded destructive-action rate limit. Failed password confirmation leaves the account and saved data intact.
+- The deletion transaction removes the account's conversation messages, conversations, academic profile, active/revoked auth sessions, and user row. Existing audit records lose their account foreign-key link through the database's SET NULL relationship; a minimal deletion event is written without a user identifier. Cookies are cleared and the response is no-store.
+- Added the matching profile-screen danger zone with an explicit confirmation dialog and current-password field. On success, the frontend clears in-memory profile/history/session state and returns to the sign-in screen.
+- Added API tests for missing CSRF, unauthenticated calls, failed password confirmation, successful deletion, removal of dependent rows, and the unlinked audit event. Check CI against the updated branch head before treating this checkpoint as verified.
+- Remaining privacy work: private file/document storage and OCR, a defined retention policy and automation for security audit metadata, and live production PostgreSQL/Redis verification. No real student documents should be uploaded to a public demo.
+
 ## Known blockers and risks
 
 - Email verification, password recovery, MFA, account administration, and frontend authentication integration are not implemented.
 - Academic profile and conversation endpoints now have owner-scoped queries and dedicated tests; private document CRUD/storage endpoints are still absent.
 - The Streamlit application is not integrated with the new API authentication boundary or Phase 4 profile/conversation storage.
 - Redis and PostgreSQL have not been tested as live production services. Rate limiting is currently IP-based; deployments must configure trusted proxies correctly and review broader abuse prevention.
-- Private document storage, retention/deletion, automated data-retention policy, and whole-account deletion remain incomplete.
+- Private document storage, retention/deletion policy and automation, and real production PostgreSQL/Redis verification remain incomplete.
 - Current official-source admissions research is incomplete. The source registry is not evidence that every listed institution has verified program rules for the 2026–27 cycle.
 - The linked filxxa/EduPath-AI is read-only for this connected account. Changes are staged on a separate branch in the writable synchronized copy datastorylabs/EduPath-AI-University_Assistant; no main branch or original repository has been changed.
 
-## Next task — Verify Phase 4 and wire storage into the advisor
+## Next task — Phase 7: private-document boundary and retention
 
-Run the API tests, SQLite migration through revision 0003, and Alembic schema comparison in CI. Fix issues exposed by those checks. Then connect saved academic profiles and persisted messages to the future frontend/advisor flow without passing untrusted user data into system prompts, and add explicit user controls for message/profile retention and whole-account deletion.
+Define a documented privacy/retention policy and implement private document storage/OCR only behind authenticated owner-scoped routes, file size/type validation, malware-scanning hooks, and deletion/retention controls. Keep document bytes out of logs, public web paths, and model prompts unless the student explicitly authorizes a safe extraction workflow. Continue to verify SQLite migrations in CI and exercise PostgreSQL/Redis in a separate staging environment before production use.

@@ -27,6 +27,12 @@ class LoginRequest(BaseModel):
         return str(value).strip().lower()
 
 
+class DeleteAccountRequest(BaseModel):
+    """Require a fresh password confirmation before destructive account deletion."""
+
+    password: SecretStr = Field(min_length=1, max_length=128)
+
+
 class UserResponse(BaseModel):
     id: UUID
     email: EmailStr

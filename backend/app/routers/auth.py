@@ -4,15 +4,17 @@ from __future__ import annotations
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.config import Settings, get_settings
 from backend.app.database import get_db
+from backend.app.models.conversation import Conversation, ConversationMessage
 from backend.app.models.session import AuthSession
+from backend.app.models.student_profile import StudentProfile
 from backend.app.models.user import User
-from backend.app.schemas import AuthResponse, LoginRequest, RegisterRequest, UserResponse
+from backend.app.schemas import AuthResponse, DeleteAccountRequest, LoginRequest, RegisterRequest, UserResponse
 from backend.app.security import (
     CSRF_COOKIE,
     SESSION_COOKIE,
@@ -45,6 +47,11 @@ def _register_rate_limit(request: Request) -> None:
 
 def _login_rate_limit(request: Request) -> None:
     enforce_rate_limit(request, "login", get_settings().login_rate_limit)
+
+
+def _account_delete_rate_limit(request: Request) -> None:
+    # Bound repeated destructive-password checks, including in local demos.
+    enforce_rate_limit(request, "account-delete", 5)
 
 
 def _create_login_response(
@@ -202,6 +209,51 @@ def logout_all(
     db.commit()
     _delete_auth_cookies(response, settings)
     response.status_code = 204
+    return response
+
+
+@router.delete(
+    "/account",
+    status_code=204,
+    dependencies=[Depends(_account_delete_rate_limit)],
+    summary="Permanently delete the signed-in user's account and saved data",
+)
+def delete_account(
+    payload: DeleteAccountRequest,
+    request: Request,
+    response: Response,
+    context: AuthenticatedContext = Depends(require_authenticated_csrf),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Delete account-owned profile/history only after CSRF and password re-confirmation."""
+    user_id = context.user.id
+    if not verify_password(payload.password.get_secret_value(), context.user.password_hash):
+        record_security_event(db, request, settings, "auth.account_delete_failed", user_id=user_id)
+        db.commit()
+        raise HTTPException(status_code=403, detail="Password confirmation failed")
+
+    # Delete child rows explicitly in one transaction for predictable behavior
+    # across SQLite demos and PostgreSQL deployments.
+    owned_conversations = select(Conversation.id).where(Conversation.user_id == user_id)
+    db.execute(delete(ConversationMessage).where(ConversationMessage.conversation_id.in_(owned_conversations)))
+    db.execute(delete(Conversation).where(Conversation.user_id == user_id))
+    db.execute(delete(StudentProfile).where(StudentProfile.user_id == user_id))
+    db.execute(delete(AuthSession).where(AuthSession.user_id == user_id))
+
+    # Keep a minimal deletion event without an account identifier. Older audit
+    # records have user_id set to NULL through their ON DELETE SET NULL FK.
+    record_security_event(db, request, settings, "auth.account_deleted")
+    deleted = db.execute(delete(User).where(User.id == user_id))
+    if deleted.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=401, detail="Authentication required")
+    db.commit()
+
+    _delete_auth_cookies(response, settings)
+    response.status_code = 204
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     return response
 
 
