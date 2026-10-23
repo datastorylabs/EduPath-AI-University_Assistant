@@ -20,6 +20,7 @@ venv/
 instance/
 uploads/
 data/student_profile.json
+data/private_uploads/
 data/sessions/
 
 # Streamlit secrets
@@ -39,8 +40,3 @@ secrets.toml
 streamlit*.log
 *.pid
 
-# React/Vite frontend outputs and local settings
-frontend/node_modules/
-frontend/dist/
-frontend/.env.local
-frontend/.env.*.local
